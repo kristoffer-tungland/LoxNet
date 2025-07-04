@@ -1,0 +1,2 @@
+# LoxNet
+Loxone miniserver
