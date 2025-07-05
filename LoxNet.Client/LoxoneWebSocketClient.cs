@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 
 namespace LoxNet;
 
-public class LoxoneWebSocketClient : IAsyncDisposable
+public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 {
-    private readonly LoxoneHttpClient _http;
+    private readonly ILoxoneHttpClient _http;
     private ClientWebSocket? _ws;
 
-    public LoxoneWebSocketClient(LoxoneHttpClient httpClient)
+    public LoxoneWebSocketClient(ILoxoneHttpClient httpClient)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     }

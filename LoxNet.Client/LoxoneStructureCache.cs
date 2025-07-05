@@ -17,14 +17,14 @@ public class LoxoneControl
     public string? CategoryName { get; init; }
 }
 
-public class LoxoneStructureCache
+public class LoxoneStructureCache : ILoxoneStructureCache
 {
-    private readonly LoxoneHttpClient _httpClient;
+    private readonly ILoxoneHttpClient _httpClient;
     private readonly Dictionary<string, LoxoneControl> _uuidMap = new();
     private readonly Dictionary<string, LoxoneRoom> _roomMap = new();
     private readonly Dictionary<string, LoxoneCategory> _categoryMap = new();
 
-    public LoxoneStructureCache(LoxoneHttpClient httpClient)
+    public LoxoneStructureCache(ILoxoneHttpClient httpClient)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     }
