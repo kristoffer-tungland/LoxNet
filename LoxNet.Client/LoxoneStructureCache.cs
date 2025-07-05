@@ -15,6 +15,8 @@ public class LoxoneControl
     public string? CategoryId { get; init; }
     public string? RoomName { get; init; }
     public string? CategoryName { get; init; }
+    public int? DefaultRating { get; init; }
+    public bool? IsSecured { get; init; }
 }
 
 public class LoxoneStructureCache : ILoxoneStructureCache
@@ -48,8 +50,13 @@ public class LoxoneStructureCache : ILoxoneStructureCache
             foreach (var roomProp in rooms.EnumerateObject())
             {
                 var id = roomProp.Name;
-                var name = roomProp.Value.GetProperty("name").GetString() ?? id;
-                _roomMap[id] = new LoxoneRoom(id, name);
+                var val = roomProp.Value;
+                var name = val.GetProperty("name").GetString() ?? id;
+                var image = val.TryGetProperty("image", out var imgVal) ? imgVal.GetString() : null;
+                int? rating = null;
+                if (val.TryGetProperty("defaultRating", out var ratVal) && ratVal.TryGetInt32(out var r))
+                    rating = r;
+                _roomMap[id] = new LoxoneRoom(id, name, image, rating);
             }
         }
 
@@ -58,8 +65,11 @@ public class LoxoneStructureCache : ILoxoneStructureCache
             foreach (var catProp in cats.EnumerateObject())
             {
                 var id = catProp.Name;
-                var name = catProp.Value.GetProperty("name").GetString() ?? id;
-                _categoryMap[id] = new LoxoneCategory(id, name);
+                var val = catProp.Value;
+                var name = val.GetProperty("name").GetString() ?? id;
+                var type = val.TryGetProperty("type", out var typeVal) ? typeVal.GetString() : null;
+                var color = val.TryGetProperty("color", out var colorVal) ? colorVal.GetString() : null;
+                _categoryMap[id] = new LoxoneCategory(id, name, type, color);
             }
         }
 
@@ -67,42 +77,50 @@ public class LoxoneStructureCache : ILoxoneStructureCache
         {
             foreach (var controlProp in controls.EnumerateObject())
             {
-                var uuid = controlProp.Name;
-                var obj = controlProp.Value;
+                AddControl(controlProp.Name, controlProp.Value, null, null);
+            }
+        }
+    }
 
-                var roomId = obj.TryGetProperty("room", out var roomVal) ? roomVal.GetString() : null;
-                var catId = obj.TryGetProperty("cat", out var catVal) ? catVal.GetString() : null;
+    private void AddControl(string uuid, JsonElement obj, string? parentRoomId, string? parentCatId)
+    {
+        var roomId = obj.TryGetProperty("room", out var roomVal) ? roomVal.GetString() : parentRoomId;
+        var catId = obj.TryGetProperty("cat", out var catVal) ? catVal.GetString() : parentCatId;
 
-                var control = new LoxoneControl
-                {
-                    Uuid = uuid,
-                    Name = obj.GetProperty("name").GetString() ?? uuid,
-                    Type = obj.GetProperty("type").GetString() ?? string.Empty,
-                    RoomId = roomId,
-                    CategoryId = catId,
-                    RoomName = roomId != null && _roomMap.TryGetValue(roomId, out var room) ? room.Name : null,
-                    CategoryName = catId != null && _categoryMap.TryGetValue(catId, out var cat) ? cat.Name : null
-                };
+        var control = new LoxoneControl
+        {
+            Uuid = uuid,
+            Name = obj.GetProperty("name").GetString() ?? uuid,
+            Type = obj.GetProperty("type").GetString() ?? string.Empty,
+            RoomId = roomId,
+            CategoryId = catId,
+            RoomName = roomId != null && _roomMap.TryGetValue(roomId!, out var room) ? room.Name : null,
+            CategoryName = catId != null && _categoryMap.TryGetValue(catId!, out var cat) ? cat.Name : null,
+            DefaultRating = obj.TryGetProperty("defaultRating", out var ratingVal) && ratingVal.TryGetInt32(out var r) ? r : (int?)null,
+            IsSecured = obj.TryGetProperty("isSecured", out var secVal) ? secVal.GetBoolean() : (bool?)null
+        };
 
-                _uuidMap[uuid] = control;
+        _uuidMap[uuid] = control;
 
-                if (obj.TryGetProperty("uuidAction", out var uuidAction) &&
-                    uuidAction.GetString() is { } actionUuid && actionUuid != uuid)
-                {
-                    _uuidMap[actionUuid] = control;
-                }
+        if (obj.TryGetProperty("uuidAction", out var uuidAction) && uuidAction.GetString() is { } actionUuid && actionUuid != uuid)
+        {
+            _uuidMap[actionUuid] = control;
+        }
 
-                if (obj.TryGetProperty("states", out var states))
-                {
-                    foreach (var stateProp in states.EnumerateObject())
-                    {
-                        var stateUuid = stateProp.Value.GetString();
-                        if (!string.IsNullOrWhiteSpace(stateUuid))
-                        {
-                            _uuidMap[stateUuid] = control;
-                        }
-                    }
-                }
+        if (obj.TryGetProperty("states", out var states))
+        {
+            foreach (var stateProp in states.EnumerateObject())
+            {
+                if (stateProp.Value.GetString() is { } stateUuid)
+                    _uuidMap[stateUuid] = control;
+            }
+        }
+
+        if (obj.TryGetProperty("subControls", out var subControls))
+        {
+            foreach (var subProp in subControls.EnumerateObject())
+            {
+                AddControl(subProp.Name, subProp.Value, roomId, catId);
             }
         }
     }
