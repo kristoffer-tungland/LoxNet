@@ -8,16 +8,21 @@ public class LoxoneClient : IAsyncDisposable
     public LoxoneHttpClient Http { get; }
     public LoxoneWebSocketClient WebSocket { get; }
 
-    public LoxoneClient(string host, int port = 80, bool secure = false)
+    public LoxoneClient(LoxoneConnectionOptions options)
     {
-        Http = new LoxoneHttpClient(host, port, secure);
-        WebSocket = new LoxoneWebSocketClient(Http, host, port, secure);
+        Http = new LoxoneHttpClient(options);
+        WebSocket = new LoxoneWebSocketClient(Http);
     }
 
-    public LoxoneClient(LoxoneHttpClient httpClient, string host, int port = 80, bool secure = false)
+    public LoxoneClient(string host, int port = 80, bool secure = false)
+        : this(new LoxoneConnectionOptions(host, port, secure))
     {
-        Http = httpClient;
-        WebSocket = new LoxoneWebSocketClient(Http, host, port, secure);
+    }
+
+    public LoxoneClient(LoxoneHttpClient httpClient)
+    {
+        Http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        WebSocket = new LoxoneWebSocketClient(Http);
     }
 
     public async ValueTask DisposeAsync()

@@ -9,26 +9,21 @@ namespace LoxNet;
 
 public class LoxoneWebSocketClient : IAsyncDisposable
 {
-    private readonly string _host;
-    private readonly int _port;
-    private readonly bool _secure;
     private readonly LoxoneHttpClient _http;
     private ClientWebSocket? _ws;
 
-    public LoxoneWebSocketClient(LoxoneHttpClient httpClient, string host, int port = 80, bool secure = false)
+    public LoxoneWebSocketClient(LoxoneHttpClient httpClient)
     {
-        _http = httpClient;
-        _host = host;
-        _port = port;
-        _secure = secure;
+        _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     }
 
     public async Task ConnectAsync()
     {
+        var opts = _http.Options;
         _ws = new ClientWebSocket();
         _ws.Options.AddSubProtocol("remotecontrol");
-        string scheme = _secure ? "wss" : "ws";
-        await _ws.ConnectAsync(new Uri($"{scheme}://{_host}:{_port}/ws/rfc6455"), CancellationToken.None);
+        string scheme = opts.Secure ? "wss" : "ws";
+        await _ws.ConnectAsync(new Uri($"{scheme}://{opts.Host}:{opts.Port}/ws/rfc6455"), CancellationToken.None);
     }
 
     public async Task CloseAsync()
@@ -80,6 +75,13 @@ public class LoxoneWebSocketClient : IAsyncDisposable
         var key = Convert.FromHexString(doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!);
         var digest = LoxoneHttpClient.HmacHex(key, Encoding.UTF8.GetBytes(token), System.Security.Cryptography.HashAlgorithmName.SHA1);
         return await SendCommandAsync($"authwithtoken/{digest}/{user}");
+    }
+
+    public async Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user)
+    {
+        await ConnectAsync();
+        var token = _http.LastToken?.Token ?? throw new InvalidOperationException("No JWT token available");
+        return await AuthenticateWithTokenAsync(token, user);
     }
 
     public async Task KeepAliveAsync() => _ = await SendCommandAsync("keepalive");
