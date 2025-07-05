@@ -4,26 +4,20 @@ C# library for interacting with a Loxone Miniserver. The implementation follows 
 
 ```csharp
 using LoxNet;
-using Microsoft.Extensions.DependencyInjection;
 
-var services = new ServiceCollection();
-services.AddHttpClient<LoxoneClient>(c =>
-{
-    c.BaseAddress = new Uri("https://192.168.1.77:443");
-});
-var provider = services.BuildServiceProvider();
-var client = provider.GetRequiredService<LoxoneClient>();
-await client.ConnectAsync();
-var token = await client.GetJwtAsync("admin", "password", 4, "Example client");
-await client.AuthenticateWithTokenAsync(token.Token, "admin");
-await client.KeepAliveAsync();
-await client.CloseAsync();
+var client = new LoxoneClient("192.168.1.77", 443, secure: true);
+var jwt = await client.Http.GetJwtAsync("admin", "password", 4, "Example client");
+await client.WebSocket.ConnectAsync();
+await client.WebSocket.AuthenticateWithTokenAsync(jwt.Token, "admin");
+await client.WebSocket.KeepAliveAsync();
+await client.WebSocket.CloseAsync();
 ```
 
 For manual usage without DI:
 
 ```csharp
 var client = new LoxoneClient("192.168.1.77", 443, secure: true);
-await client.ConnectAsync();
-// ...
+var jwt = await client.Http.GetJwtAsync("admin", "password", 4, "Example client");
+await client.WebSocket.ConnectAsync();
+await client.WebSocket.AuthenticateWithTokenAsync(jwt.Token, "admin");
 ```
