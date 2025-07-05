@@ -18,12 +18,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\Demo Case Config UK.Loxone">
-      <Link>Demo Case Config UK.Loxone</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LoxNet.Client\LoxNet.Client.csproj" />
