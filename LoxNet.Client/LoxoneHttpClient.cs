@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace LoxNet;
 
-public class LoxoneHttpClient : IAsyncDisposable
+public class LoxoneHttpClient : ILoxoneHttpClient
 {
     private readonly HttpClient _http;
     private readonly bool _disposeHttpClient;
@@ -43,7 +43,7 @@ public class LoxoneHttpClient : IAsyncDisposable
 
     private string BaseUrl => _http.BaseAddress?.ToString().TrimEnd('/') ?? $"{(Options.Secure ? "https" : "http")}://{Options.Host}:{Options.Port}";
 
-    internal async Task<JsonDocument> RequestJsonAsync(string path)
+    public async Task<JsonDocument> RequestJsonAsync(string path)
     {
         using var resp = await _http.GetAsync($"{BaseUrl}/{path}");
         resp.EnsureSuccessStatusCode();

@@ -3,10 +3,10 @@ using System.Threading.Tasks;
 
 namespace LoxNet;
 
-public class LoxoneClient : IAsyncDisposable
+public class LoxoneClient : ILoxoneClient
 {
-    public LoxoneHttpClient Http { get; }
-    public LoxoneWebSocketClient WebSocket { get; }
+    public ILoxoneHttpClient Http { get; }
+    public ILoxoneWebSocketClient WebSocket { get; }
 
     public LoxoneClient(LoxoneConnectionOptions options)
     {
@@ -19,7 +19,7 @@ public class LoxoneClient : IAsyncDisposable
     {
     }
 
-    public LoxoneClient(LoxoneHttpClient httpClient)
+    public LoxoneClient(ILoxoneHttpClient httpClient)
     {
         Http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         WebSocket = new LoxoneWebSocketClient(Http);
