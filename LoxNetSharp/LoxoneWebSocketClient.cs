@@ -1,0 +1,106 @@
+using System;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace LoxNet;
+
+public class LoxoneWebSocketClient : IAsyncDisposable
+{
+    private readonly string _host;
+    private readonly int _port;
+    private readonly bool _secure;
+    private ClientWebSocket? _ws;
+    private readonly LoxoneHttpClient? _http;
+
+    public LoxoneWebSocketClient(string host, int port = 80, bool secure = false, LoxoneHttpClient? httpClient = null)
+    {
+        _host = host;
+        _port = port;
+        _secure = secure;
+        _http = httpClient;
+    }
+
+    public async Task ConnectAsync()
+    {
+        _ws = new ClientWebSocket();
+        _ws.Options.AddSubProtocol("remotecontrol");
+        string scheme = _secure ? "wss" : "ws";
+        await _ws.ConnectAsync(new Uri($"{scheme}://{_host}:{_port}/ws/rfc6455"), CancellationToken.None);
+    }
+
+    public async Task CloseAsync()
+    {
+        if (_ws is not null)
+        {
+            await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+            _ws.Dispose();
+            _ws = null;
+        }
+    }
+
+    private async Task<string> ReceiveStringAsync()
+    {
+        if (_ws is null) throw new InvalidOperationException("WebSocket not connected");
+        var buffer = new ArraySegment<byte>(new byte[8192]);
+        using var ms = new System.IO.MemoryStream();
+        while (true)
+        {
+            var result = await _ws.ReceiveAsync(buffer, CancellationToken.None);
+            ms.Write(buffer.Array!, buffer.Offset, result.Count);
+            if (result.EndOfMessage)
+                break;
+        }
+        return Encoding.UTF8.GetString(ms.ToArray());
+    }
+
+    private async Task SendStringAsync(string text)
+    {
+        if (_ws is null) throw new InvalidOperationException("WebSocket not connected");
+        var data = Encoding.UTF8.GetBytes(text);
+        await _ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Text, true, CancellationToken.None);
+    }
+
+    private async Task<LoxoneMessage> SendCommandAsync(string command)
+    {
+        await SendStringAsync(command);
+        var response = await ReceiveStringAsync();
+        using var doc = JsonDocument.Parse(response);
+        var ll = doc.RootElement.GetProperty("LL");
+        JsonElement value = ll.TryGetProperty("value", out var v) ? v : default;
+        string? message = ll.TryGetProperty("message", out var msg) ? msg.GetString() : null;
+        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, message);
+    }
+
+    public async Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user)
+    {
+        if (_http is null) throw new InvalidOperationException("HTTP client required for authentication");
+        var keyHex = await _http.GetKeyAsync();
+        var key = Convert.FromHexString(keyHex);
+        var digest = LoxoneWebSocketClient.HmacHex(key, Encoding.UTF8.GetBytes(token));
+        return await SendCommandAsync($"authwithtoken/{digest}/{user}");
+    }
+
+    private static string HmacHex(ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)
+    {
+        using var hmac = new HMACSHA1(key.ToArray());
+        var hash = hmac.ComputeHash(data.ToArray());
+        var sb = new StringBuilder(hash.Length * 2);
+        foreach (var b in hash)
+            sb.Append(b.ToString("x2"));
+        return sb.ToString();
+    }
+
+    public async Task KeepAliveAsync() => _ = await SendCommandAsync("keepalive");
+
+    public async Task<LoxoneMessage> CommandAsync(string path) => await SendCommandAsync(path);
+
+    public async ValueTask DisposeAsync()
+    {
+        await CloseAsync();
+    }
+}
+
