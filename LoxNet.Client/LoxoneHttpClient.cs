@@ -86,7 +86,7 @@ public class LoxoneHttpClient : IAsyncDisposable
     public async Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info)
     {
         var keyInfo = await GetKey2Async(user);
-        var keyBytes = Convert.FromHexString(keyInfo.Key);
+        var keyBytes = HexUtils.FromHexString(keyInfo.Key);
         var algoName = keyInfo.HashAlg.Equals("sha256", StringComparison.OrdinalIgnoreCase) ? HashAlgorithmName.SHA256 : HashAlgorithmName.SHA1;
         using HashAlgorithm algo = algoName == HashAlgorithmName.SHA256 ? SHA256.Create() : SHA1.Create();
         var pwHash = HashToUpper(Encoding.UTF8.GetBytes($"{password}:{keyInfo.Salt}"), algo);
@@ -110,6 +110,10 @@ public class LoxoneHttpClient : IAsyncDisposable
     {
         if (_disposeHttpClient)
             _http.Dispose();
+#if NET48
+        return default;
+#else
         return ValueTask.CompletedTask;
+#endif
     }
 }
