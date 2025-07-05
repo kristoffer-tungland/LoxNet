@@ -5,10 +5,10 @@ C# library for interacting with a Loxone Miniserver. The implementation follows 
 ```csharp
 using LoxNet;
 
-var client = new LoxoneClient("192.168.1.77", 443, secure: true);
+var options = new LoxoneConnectionOptions("192.168.1.77", 443, secure: true);
+var client = new LoxoneClient(options);
 var jwt = await client.Http.GetJwtAsync("admin", "password", 4, "Example client");
-await client.WebSocket.ConnectAsync();
-await client.WebSocket.AuthenticateWithTokenAsync(jwt.Token, "admin");
+await client.WebSocket.ConnectAndAuthenticateAsync("admin");
 await client.WebSocket.KeepAliveAsync();
 await client.WebSocket.CloseAsync();
 ```
@@ -16,8 +16,7 @@ await client.WebSocket.CloseAsync();
 For manual usage without DI:
 
 ```csharp
-var client = new LoxoneClient("192.168.1.77", 443, secure: true);
+var client = new LoxoneClient(new LoxoneConnectionOptions("192.168.1.77", 443, secure: true));
 var jwt = await client.Http.GetJwtAsync("admin", "password", 4, "Example client");
-await client.WebSocket.ConnectAsync();
-await client.WebSocket.AuthenticateWithTokenAsync(jwt.Token, "admin");
+await client.WebSocket.ConnectAndAuthenticateAsync("admin");
 ```

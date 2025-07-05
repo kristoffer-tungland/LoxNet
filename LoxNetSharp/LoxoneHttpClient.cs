@@ -9,21 +9,18 @@ namespace LoxNet;
 
 public class LoxoneHttpClient : IAsyncDisposable
 {
-    private readonly string _host;
-    private readonly int _port;
     private readonly HttpClient _http;
     private readonly bool _disposeHttpClient;
-    private readonly bool _secure;
+    public LoxoneConnectionOptions Options { get; }
+    public TokenInfo? LastToken { get; private set; }
 
-    public LoxoneHttpClient(HttpClient httpClient, string host, int port = 80, bool secure = false)
+    public LoxoneHttpClient(HttpClient httpClient, LoxoneConnectionOptions options)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _host = host;
-        _port = port;
-        _secure = secure;
+        Options = options ?? throw new ArgumentNullException(nameof(options));
         _disposeHttpClient = false;
         if (_http.BaseAddress is null)
-            _http.BaseAddress = new Uri($"{(_secure ? "https" : "http")}://{_host}:{_port}");
+            _http.BaseAddress = new Uri($"{(Options.Secure ? "https" : "http")}://{Options.Host}:{Options.Port}");
     }
 
     public LoxoneHttpClient(HttpClient httpClient)
@@ -31,19 +28,20 @@ public class LoxoneHttpClient : IAsyncDisposable
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         if (_http.BaseAddress is null)
             throw new ArgumentException("HttpClient must have BaseAddress set", nameof(httpClient));
-        _host = _http.BaseAddress.Host;
-        _port = _http.BaseAddress.Port;
-        _secure = _http.BaseAddress.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+        Options = new LoxoneConnectionOptions(
+            _http.BaseAddress.Host,
+            _http.BaseAddress.Port,
+            _http.BaseAddress.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase));
         _disposeHttpClient = false;
     }
 
-    public LoxoneHttpClient(string host, int port = 80, bool secure = false)
-        : this(new HttpClient(), host, port, secure)
+    public LoxoneHttpClient(LoxoneConnectionOptions options)
+        : this(new HttpClient(), options)
     {
         _disposeHttpClient = true;
     }
 
-    private string BaseUrl => _http.BaseAddress?.ToString().TrimEnd('/') ?? $"{(_secure ? "https" : "http")}://{_host}:{_port}";
+    private string BaseUrl => _http.BaseAddress?.ToString().TrimEnd('/') ?? $"{(Options.Secure ? "https" : "http")}://{Options.Host}:{Options.Port}";
 
     internal async Task<JsonDocument> RequestJsonAsync(string path)
     {
@@ -97,13 +95,15 @@ public class LoxoneHttpClient : IAsyncDisposable
         var encInfo = Uri.EscapeDataString(info);
         using var doc = await RequestJsonAsync($"jdev/sys/getjwt/{userHash}/{user}/{permission}/{uid}/{encInfo}");
         var val = doc.RootElement.GetProperty("LL").GetProperty("value");
-        return new TokenInfo(
+        var token = new TokenInfo(
             val.GetProperty("token").GetString()!,
             val.GetProperty("validUntil").GetInt64(),
             val.GetProperty("tokenRights").GetInt32(),
             val.GetProperty("unsecurePass").GetBoolean(),
             val.GetProperty("key").GetString()!
         );
+        LastToken = token;
+        return token;
     }
 
     public ValueTask DisposeAsync()
