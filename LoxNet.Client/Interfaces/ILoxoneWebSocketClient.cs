@@ -11,4 +11,14 @@ public interface ILoxoneWebSocketClient : IAsyncDisposable
     Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user);
     Task KeepAliveAsync();
     Task<LoxoneMessage> CommandAsync(string path);
+
+    /// <summary>
+    /// Raised when a raw message is received from the websocket.
+    /// </summary>
+    event EventHandler<string>? MessageReceived;
+
+    /// <summary>
+    /// Starts listening for incoming messages.
+    /// </summary>
+    Task ListenAsync(System.Threading.CancellationToken cancellationToken = default);
 }

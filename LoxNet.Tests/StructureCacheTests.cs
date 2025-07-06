@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
+using LoxNet;
 
 namespace LoxNet.Tests;
 
@@ -19,10 +20,25 @@ public class StructureCacheTests
       "room": "room-1",
       "cat": "cat-1",
       "states": { "active": "uuid-1-state" },
+      "details": { "isStairwayLs": true },
       "subControls": {
         "sub-uuid1": { "name": "Sub Switch", "type": "Switch", "uuidAction": "sub-act-uuid1" }
       }
+    },
+    "uuid-2": {
+      "name": "LCV2",
+      "type": "LightControllerV2",
+      "uuidAction": "act-uuid-2",
+      "room": "room-1",
+      "states": { "activeMoods": "uuid-active", "moodList": "uuid-list" },
+      "details": {
+        "masterValue": "uuid-mv",
+        "masterColor": "uuid-mc",
+        "favoriteMoods": ["ID1"],
+        "presence": 1
+      }
     }
+
   },
   "rooms": {
     "room-1": { "name": "Kitchen", "image": "room.png", "defaultRating": 1 }
@@ -32,6 +48,21 @@ public class StructureCacheTests
   }
 }
 """;
+
+    private class MockWebSocketClient : ILoxoneWebSocketClient
+    {
+        public event EventHandler<string>? MessageReceived;
+        public Task ConnectAsync() => Task.CompletedTask;
+        public Task CloseAsync() => Task.CompletedTask;
+        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user) => Task.FromResult(new LoxoneMessage(0, null, null));
+        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user) => Task.FromResult(new LoxoneMessage(0, null, null));
+        public Task KeepAliveAsync() => Task.CompletedTask;
+        public Task<LoxoneMessage> CommandAsync(string path) => Task.FromResult(new LoxoneMessage(0, null, null));
+        public Task ListenAsync(System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public void Send(string json) => MessageReceived?.Invoke(this, json);
+    }
 
     private class MockHttpClient : ILoxoneHttpClient
     {
@@ -47,17 +78,24 @@ public class StructureCacheTests
     [Fact]
     public async Task LoadAsync_ParsesStructure()
     {
-        var cache = new LoxoneStructureCache(new MockHttpClient());
+        var cache = new LoxoneStructureState(new MockHttpClient());
         await cache.LoadAsync();
 
         Assert.True(cache.TryGetControl("uuid-1", out var ctrl));
         Assert.Equal("Light", ctrl!.Name);
-        Assert.Equal("Switch", ctrl.Type);
+        Assert.Equal(ControlType.Switch, ctrl.Type);
+        Assert.IsType<SwitchControl>(ctrl);
+        Assert.Equal("act-uuid-1", ctrl.UuidAction);
+        Assert.True(ctrl.States!.ContainsKey("active"));
+        var sw = Assert.IsType<SwitchControl>(ctrl);
+        Assert.True(sw.Details!.IsStairwayLs);
+        Assert.Equal("uuid-1-state", sw.ActiveState);
         Assert.Equal(2, ctrl.DefaultRating);
         Assert.False(ctrl.IsSecured);
         Assert.True(cache.TryGetControl("sub-uuid1", out var sub));
+        Assert.IsType<SwitchControl>(sub);
         Assert.Equal("Sub Switch", sub!.Name);
-        Assert.Equal("Switch", sub.Type);
+        Assert.Equal(ControlType.Switch, sub.Type);
 
         var room = cache.Rooms["room-1"];
         Assert.Equal("Kitchen", room.Name);
@@ -68,5 +106,32 @@ public class StructureCacheTests
         Assert.Equal("Lighting", cat.Name);
         Assert.Equal("lights", cat.Type);
         Assert.Equal("#0000ff", cat.Color);
+
+        Assert.True(cache.TryGetControl("uuid-2", out var lcCtrl));
+        var lc = Assert.IsType<LightControllerV2>(lcCtrl);
+        Assert.Equal("LCV2", lc.Name);
+        Assert.Equal("uuid-mv", lc.Details!.MasterValue);
+        Assert.Contains("ID1", lc.Details.FavoriteMoods!);
+        Assert.Equal("uuid-active", lc.ActiveMoodsState);
+        Assert.Equal("uuid-list", lc.MoodListState);
+    }
+
+    [Fact]
+    public async Task WebSocket_UpdatesState()
+    {
+        var ws = new MockWebSocketClient();
+        var cache = new LoxoneStructureState(new MockHttpClient(), wsClient: ws);
+        await cache.LoadAsync();
+
+        Assert.True(cache.TryGetControl("uuid-1", out var ctrl));
+        string? changedName = null;
+        string? changedValue = null;
+        ctrl!.StateChanged += (_, e) => { changedName = e.State; changedValue = e.Value; };
+
+        ws.Send("{\"uuid\":\"uuid-1-state\",\"value\":\"1\"}");
+
+        Assert.Equal("active", changedName);
+        Assert.Equal("1", changedValue);
+        Assert.Equal("1", ctrl.StateValues["active"]);
     }
 }

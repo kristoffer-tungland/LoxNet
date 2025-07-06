@@ -11,6 +11,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 {
     private readonly ILoxoneHttpClient _http;
     private ClientWebSocket? _ws;
+    public event EventHandler<string>? MessageReceived;
 
     public LoxoneWebSocketClient(ILoxoneHttpClient httpClient)
     {
@@ -82,6 +83,15 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         await ConnectAsync();
         var token = _http.LastToken?.Token ?? throw new InvalidOperationException("No JWT token available");
         return await AuthenticateWithTokenAsync(token, user);
+    }
+
+    public async Task ListenAsync(CancellationToken cancellationToken = default)
+    {
+        while (_ws is not null && _ws.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+        {
+            var msg = await ReceiveStringAsync();
+            MessageReceived?.Invoke(this, msg);
+        }
     }
 
     public async Task KeepAliveAsync() => _ = await SendCommandAsync("keepalive");
