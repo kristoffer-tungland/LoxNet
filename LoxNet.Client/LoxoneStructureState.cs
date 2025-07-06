@@ -84,7 +84,7 @@ public class LoxoneStructureState : ILoxoneStructureState
         }
     }
 
-    private void AddControl(string uuid, ControlDto dto, string? parentRoomId, string? parentCatId, JsonSerializerOptions options)
+    private void AddControl(string uuid, ControlDto dto, string? parentRoomId, string? parentCatId, JsonSerializerOptions options, LoxoneControl? host = null)
     {
         var roomId = dto.Room ?? parentRoomId;
         var catId = dto.Category ?? parentCatId;
@@ -132,18 +132,30 @@ public class LoxoneStructureState : ILoxoneStructureState
             }
         }
 
-        _uuidMap[uuid] = control;
-
-        if (control.UuidAction is { } actionUuid && actionUuid != uuid)
+        if (host == null)
         {
-            _uuidMap[actionUuid] = control;
+            _uuidMap[uuid] = control;
+
+            if (control.UuidAction is { } actionUuid && actionUuid != uuid)
+            {
+                _uuidMap[actionUuid] = control;
+            }
+        }
+        else
+        {
+            host.SubControls[uuid] = control;
+
+            if (control.UuidAction is { } actionUuid)
+            {
+                _uuidMap[actionUuid] = control;
+            }
         }
 
         if (dto.SubControls is { } subs)
         {
             foreach (var sub in subs)
             {
-                AddControl(sub.Key, sub.Value, roomId, catId, options);
+                AddControl(sub.Key, sub.Value, roomId, catId, options, control);
             }
         }
     }

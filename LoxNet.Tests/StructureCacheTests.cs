@@ -105,9 +105,9 @@ public class StructureCacheTests
         Assert.True(ctrl.HasControlNotes);
         Assert.Equal("preset-uuid", ctrl.Preset!.Uuid);
         Assert.Contains("link-1", ctrl.Links!);
-        Assert.True(cache.TryGetControl("sub-uuid1", out var sub));
-        Assert.IsType<SwitchControl>(sub);
-        Assert.Equal("Sub Switch", sub!.Name);
+        Assert.True(ctrl.SubControls.ContainsKey("sub-uuid1"));
+        var sub = Assert.IsType<SwitchControl>(ctrl.SubControls["sub-uuid1"]);
+        Assert.Equal("Sub Switch", sub.Name);
         Assert.Equal(ControlType.Switch, sub.Type);
 
         var room = cache.Rooms["room-1"];

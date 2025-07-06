@@ -74,6 +74,11 @@ public class LoxoneControl
     [JsonPropertyName("links")]
     public IReadOnlyList<string>? Links { get; set; }
 
+    /// <summary>
+    /// Collection of sub controls belonging to this control.
+    /// </summary>
+    public Dictionary<string, LoxoneControl> SubControls { get; } = new();
+
     /// <summary>Mapping of state names to UUIDs.</summary>
     [JsonPropertyName("states")]
     public IReadOnlyDictionary<string, string>? States { get; set; }
