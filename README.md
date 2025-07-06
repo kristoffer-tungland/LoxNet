@@ -26,7 +26,7 @@ await client.WebSocket.ConnectAndAuthenticateAsync("admin");
 Load the structure and query controls by name, room or category:
 
 ```csharp
-var cache = new LoxoneStructureCache(client.Http);
+var cache = new LoxoneStructureState(client.Http);
 await cache.LoadAsync();
 
 if (cache.TryGetControlByName("Kitchen Temp", out var ctrl))
