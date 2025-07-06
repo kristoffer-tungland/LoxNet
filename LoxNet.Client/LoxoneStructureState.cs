@@ -117,10 +117,6 @@ public class LoxoneStructureState : ILoxoneStructureState
         control.SecuredDetails = dto.SecuredDetails;
         control.UuidAction = dto.UuidAction;
         control.RawDetails = dto.Details;
-        if (!_lightMode)
-        {
-            LoxoneControlFactory.ParseDetails(control, options);
-        }
         control.Statistic = dto.Statistic;
         control.Restrictions = dto.Restrictions;
         control.HasControlNotes = dto.HasControlNotes;

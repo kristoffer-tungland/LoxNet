@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LoxNet;
@@ -7,10 +8,24 @@ namespace LoxNet;
 /// </summary>
 public class SwitchControl : LoxoneControl
 {
+    private SwitchControlDetails? _details;
+
     /// <summary>
     /// Additional detail information for this switch control.
     /// </summary>
-    public SwitchControlDetails? Details { get; set; }
+    public SwitchControlDetails? Details
+    {
+        get
+        {
+            if (_details == null && RawDetails.HasValue)
+            {
+                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                _details = JsonSerializer.Deserialize<SwitchControlDetails>(RawDetails.Value.GetRawText(), opts);
+            }
+            return _details;
+        }
+        set => _details = value;
+    }
 
     /// <summary>
     /// UUID of the "active" state for this switch.
