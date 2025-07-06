@@ -17,6 +17,12 @@ public class StructureCacheTests
       "uuidAction": "act-uuid-1",
       "defaultRating": 2,
       "isSecured": false,
+      "securedDetails": true,
+      "statistic": { "frequency": 1 },
+      "restrictions": 16,
+      "hasControlNotes": true,
+      "preset": { "uuid": "preset-uuid", "name": "Default" },
+      "links": ["link-1"],
       "room": "room-1",
       "cat": "cat-1",
       "states": { "active": "uuid-1-state" },
@@ -92,6 +98,13 @@ public class StructureCacheTests
         Assert.Equal("uuid-1-state", sw.ActiveState);
         Assert.Equal(2, ctrl.DefaultRating);
         Assert.False(ctrl.IsSecured);
+        Assert.True(ctrl.SecuredDetails);
+        Assert.True(ctrl.RawDetails.HasValue);
+        Assert.True(ctrl.Statistic.HasValue);
+        Assert.Equal(16, ctrl.Restrictions);
+        Assert.True(ctrl.HasControlNotes);
+        Assert.Equal("preset-uuid", ctrl.Preset!.Uuid);
+        Assert.Contains("link-1", ctrl.Links!);
         Assert.True(cache.TryGetControl("sub-uuid1", out var sub));
         Assert.IsType<SwitchControl>(sub);
         Assert.Equal("Sub Switch", sub!.Name);

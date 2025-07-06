@@ -10,44 +10,38 @@ public static class LoxoneControlFactory
     /// <summary>
     /// Creates a control instance for the given type.
     /// </summary>
-    public static LoxoneControl Create(ControlType type)
+    public static LoxoneControl Create(ControlType type) => type switch
     {
-        return type switch
-        {
-            ControlType.Switch => new SwitchControl(),
-            ControlType.LightController => new LightController(),
-            ControlType.LightControllerV2 => new LightControllerV2(),
-            _ => new LoxoneControl()
-        };
-    }
+        ControlType.Switch => new SwitchControl(),
+        ControlType.LightController => new LightController(),
+        ControlType.LightControllerV2 => new LightControllerV2(),
+        _ => new LoxoneControl()
+    };
 
     /// <summary>
-    /// Creates a typed control and populates detail properties when present.
+    /// Populates control specific detail properties using the raw details from
+    /// <see cref="LoxoneControl.RawDetails"/>.
     /// </summary>
-    /// <param name="type">The control type to instantiate.</param>
-    /// <param name="details">Optional details JSON element from the structure file.</param>
+    /// <param name="control">The control instance whose details should be parsed.</param>
     /// <param name="options">Serializer options for deserializing the details.</param>
-    public static LoxoneControl Create(ControlType type, JsonElement? details, JsonSerializerOptions options)
+    public static void ParseDetails(LoxoneControl control, JsonSerializerOptions options)
     {
-        var ctrl = Create(type);
+        var details = control.RawDetails;
+        if (!details.HasValue)
+            return;
 
-        if (details.HasValue)
+        switch (control)
         {
-            switch (ctrl)
-            {
-                case LightController light:
-                    light.Details = DeserializeDetails<LightControllerDetails>(details, options);
-                    break;
-                case LightControllerV2 lightV2:
-                    lightV2.Details = DeserializeDetails<LightControllerV2Details>(details, options);
-                    break;
-                case SwitchControl sw:
-                    sw.Details = DeserializeDetails<SwitchControlDetails>(details, options);
-                    break;
-            }
+            case LightController light:
+                light.Details = DeserializeDetails<LightControllerDetails>(details, options);
+                break;
+            case LightControllerV2 lightV2:
+                lightV2.Details = DeserializeDetails<LightControllerV2Details>(details, options);
+                break;
+            case SwitchControl sw:
+                sw.Details = DeserializeDetails<SwitchControlDetails>(details, options);
+                break;
         }
-
-        return ctrl;
     }
 
     private static T? DeserializeDetails<T>(JsonElement? details, JsonSerializerOptions options)
