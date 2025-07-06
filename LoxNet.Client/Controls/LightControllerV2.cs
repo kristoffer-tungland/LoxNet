@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
@@ -8,26 +7,8 @@ namespace LoxNet;
 /// <summary>
 /// Provides commands for the LightControllerV2 control.
 /// </summary>
-public class LightControllerV2 : LoxoneControl
+public class LightControllerV2 : LoxoneControl<LightControllerV2Details>
 {
-    private LightControllerV2Details? _details;
-
-    /// <summary>
-    /// Additional data parsed from the <c>details</c> section of the structure file.
-    /// </summary>
-    public LightControllerV2Details? Details
-    {
-        get
-        {
-            if (_details == null && RawDetails.HasValue)
-            {
-                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                _details = JsonSerializer.Deserialize<LightControllerV2Details>(RawDetails.Value.GetRawText(), opts);
-            }
-            return _details;
-        }
-        set => _details = value;
-    }
 
     /// <summary>
     /// UUID of the state listing the active moods.

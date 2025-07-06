@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LoxNet;
@@ -6,26 +5,8 @@ namespace LoxNet;
 /// <summary>
 /// Provides methods specific to the <c>LightController</c> type.
 /// </summary>
-public class LightController : LoxoneControl
+public class LightController : LoxoneControl<LightControllerDetails>
 {
-    private LightControllerDetails? _details;
-
-    /// <summary>
-    /// Additional data parsed from the <c>details</c> section of the structure file.
-    /// </summary>
-    public LightControllerDetails? Details
-    {
-        get
-        {
-            if (_details == null && RawDetails.HasValue)
-            {
-                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                _details = JsonSerializer.Deserialize<LightControllerDetails>(RawDetails.Value.GetRawText(), opts);
-            }
-            return _details;
-        }
-        set => _details = value;
-    }
 
     /// <summary>
     /// UUID of the state representing the currently active scene.
