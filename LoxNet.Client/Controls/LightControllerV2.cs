@@ -7,12 +7,8 @@ namespace LoxNet;
 /// <summary>
 /// Provides commands for the LightControllerV2 control.
 /// </summary>
-public class LightControllerV2 : LoxoneControl
+public class LightControllerV2 : LoxoneControl<LightControllerV2Details>
 {
-    /// <summary>
-    /// Additional data parsed from the <c>details</c> section of the structure file.
-    /// </summary>
-    public LightControllerV2Details? Details { get; set; }
 
     /// <summary>
     /// UUID of the state listing the active moods.

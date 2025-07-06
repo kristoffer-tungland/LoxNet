@@ -5,12 +5,8 @@ namespace LoxNet;
 /// <summary>
 /// Provides convenience methods for the <c>Switch</c> control.
 /// </summary>
-public class SwitchControl : LoxoneControl
+public class SwitchControl : LoxoneControl<SwitchControlDetails>
 {
-    /// <summary>
-    /// Additional detail information for this switch control.
-    /// </summary>
-    public SwitchControlDetails? Details { get; set; }
 
     /// <summary>
     /// UUID of the "active" state for this switch.

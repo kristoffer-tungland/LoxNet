@@ -42,9 +42,42 @@ public class LoxoneControl
     [JsonPropertyName("isSecured")]
     public bool? IsSecured { get; set; }
 
+    /// <summary>Flag indicating the control contains sensitive information.</summary>
+    [JsonPropertyName("securedDetails")]
+    public bool? SecuredDetails { get; set; }
+
     /// <summary>UUID used when sending commands to the control.</summary>
     [JsonPropertyName("uuidAction")]
     public string? UuidAction { get; set; }
+
+    /// <summary>Unparsed details element from the structure file.</summary>
+    [JsonPropertyName("details")]
+    public JsonElement? RawDetails { get; set; }
+
+    /// <summary>Statistic configuration for this control.</summary>
+    [JsonPropertyName("statistic")]
+    public JsonElement? Statistic { get; set; }
+
+    /// <summary>Restriction flags for this control.</summary>
+    [JsonPropertyName("restrictions")]
+    public int? Restrictions { get; set; }
+
+    /// <summary>Indicates if notes are available for this control.</summary>
+    [JsonPropertyName("hasControlNotes")]
+    public bool? HasControlNotes { get; set; }
+
+    /// <summary>Preset information if the control uses one.</summary>
+    [JsonPropertyName("preset")]
+    public LoxonePreset? Preset { get; set; }
+
+    /// <summary>UUIDs of linked controls.</summary>
+    [JsonPropertyName("links")]
+    public IReadOnlyList<string>? Links { get; set; }
+
+    /// <summary>
+    /// Collection of sub controls belonging to this control.
+    /// </summary>
+    public Dictionary<string, LoxoneControl> SubControls { get; } = new();
 
     /// <summary>Mapping of state names to UUIDs.</summary>
     [JsonPropertyName("states")]

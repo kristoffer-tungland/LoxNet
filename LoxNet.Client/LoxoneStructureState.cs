@@ -84,7 +84,7 @@ public class LoxoneStructureState : ILoxoneStructureState
         }
     }
 
-    private void AddControl(string uuid, ControlDto dto, string? parentRoomId, string? parentCatId, JsonSerializerOptions options)
+    private void AddControl(string uuid, ControlDto dto, string? parentRoomId, string? parentCatId, JsonSerializerOptions options, LoxoneControl? host = null)
     {
         var roomId = dto.Room ?? parentRoomId;
         var catId = dto.Category ?? parentCatId;
@@ -103,7 +103,7 @@ public class LoxoneStructureState : ILoxoneStructureState
 
         var control = _lightMode
             ? new LoxoneControl()
-            : LoxoneControlFactory.Create(ctrlType, dto.Details, options);
+            : LoxoneControlFactory.Create(ctrlType);
 
         control.Uuid = uuid;
         control.Name = name;
@@ -114,7 +114,14 @@ public class LoxoneStructureState : ILoxoneStructureState
         control.CategoryName = categoryName;
         control.DefaultRating = dto.DefaultRating;
         control.IsSecured = dto.IsSecured;
+        control.SecuredDetails = dto.SecuredDetails;
         control.UuidAction = dto.UuidAction;
+        control.RawDetails = dto.Details;
+        control.Statistic = dto.Statistic;
+        control.Restrictions = dto.Restrictions;
+        control.HasControlNotes = dto.HasControlNotes;
+        control.Preset = dto.Preset is { } p ? new LoxonePreset(p.Uuid, p.Name) : null;
+        control.Links = dto.Links;
         control.States = dto.States;
 
         if (dto.States is not null)
@@ -125,18 +132,30 @@ public class LoxoneStructureState : ILoxoneStructureState
             }
         }
 
-        _uuidMap[uuid] = control;
-
-        if (control.UuidAction is { } actionUuid && actionUuid != uuid)
+        if (host == null)
         {
-            _uuidMap[actionUuid] = control;
+            _uuidMap[uuid] = control;
+
+            if (control.UuidAction is { } actionUuid && actionUuid != uuid)
+            {
+                _uuidMap[actionUuid] = control;
+            }
+        }
+        else
+        {
+            host.SubControls[uuid] = control;
+
+            if (control.UuidAction is { } actionUuid)
+            {
+                _uuidMap[actionUuid] = control;
+            }
         }
 
         if (dto.SubControls is { } subs)
         {
             foreach (var sub in subs)
             {
-                AddControl(sub.Key, sub.Value, roomId, catId, options);
+                AddControl(sub.Key, sub.Value, roomId, catId, options, control);
             }
         }
     }

@@ -48,15 +48,37 @@ internal class ControlDto
     [JsonPropertyName("isSecured")]
     public bool? IsSecured { get; set; }
 
+    [JsonPropertyName("securedDetails")]
+    public bool? SecuredDetails { get; set; }
+
     [JsonPropertyName("states")]
     public Dictionary<string, string>? States { get; set; }
 
     [JsonPropertyName("details")]
     public JsonElement? Details { get; set; }
 
+    [JsonPropertyName("statistic")]
+    public JsonElement? Statistic { get; set; }
+
+    [JsonPropertyName("restrictions")]
+    public int? Restrictions { get; set; }
+
+    [JsonPropertyName("hasControlNotes")]
+    public bool? HasControlNotes { get; set; }
+
+    [JsonPropertyName("preset")]
+    public PresetDto? Preset { get; set; }
+
+    [JsonPropertyName("links")]
+    public List<string>? Links { get; set; }
+
     [JsonPropertyName("subControls")]
     public Dictionary<string, ControlDto>? SubControls { get; set; }
 }
+
+internal record PresetDto(
+    [property: JsonPropertyName("uuid")] string Uuid,
+    [property: JsonPropertyName("name")] string? Name);
 
 /// <summary>
 /// Model for a room entry from the structure file.

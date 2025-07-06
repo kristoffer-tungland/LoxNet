@@ -5,12 +5,8 @@ namespace LoxNet;
 /// <summary>
 /// Provides methods specific to the <c>LightController</c> type.
 /// </summary>
-public class LightController : LoxoneControl
+public class LightController : LoxoneControl<LightControllerDetails>
 {
-    /// <summary>
-    /// Additional data parsed from the <c>details</c> section of the structure file.
-    /// </summary>
-    public LightControllerDetails? Details { get; set; }
 
     /// <summary>
     /// UUID of the state representing the currently active scene.
