@@ -4,6 +4,7 @@
 - The implementation follows the Loxone communication documentation. See:
   - <https://www.loxone.com/wp-content/uploads/datasheets/CommunicatingWithMiniserver.pdf>
   - <https://www.loxone.com/wp-content/uploads/datasheets/StructureFile.pdf>
+  - <https://www.loxone.com/wp-content/uploads/datasheets/OperatingModeSchedule.pdf>
 - To run the unit tests use the .NET SDK (9.0 or later):
   ```sh
   dotnet test LoxNet.Tests/LoxNet.Tests.csproj
