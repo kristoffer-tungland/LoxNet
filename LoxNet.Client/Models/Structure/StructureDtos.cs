@@ -9,6 +9,10 @@ namespace LoxNet;
 /// </summary>
 internal class StructureFileDto
 {
+    /// <summary>Dictionary of operating modes keyed by identifier.</summary>
+    [JsonPropertyName("operatingModes")]
+    public Dictionary<string, OperatingModeDto>? OperatingModes { get; set; }
+
     /// <summary>Dictionary of controls keyed by UUID.</summary>
     [JsonPropertyName("controls")]
     public Dictionary<string, ControlDto>? Controls { get; set; }
@@ -79,6 +83,15 @@ internal class ControlDto
 internal record PresetDto(
     [property: JsonPropertyName("uuid")] string Uuid,
     [property: JsonPropertyName("name")] string? Name);
+
+/// <summary>
+/// Model for an operating mode entry.
+/// </summary>
+internal class OperatingModeDto
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
 
 /// <summary>
 /// Model for a room entry from the structure file.

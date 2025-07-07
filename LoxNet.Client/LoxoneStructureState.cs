@@ -12,6 +12,7 @@ public class LoxoneStructureState : ILoxoneStructureState
     private readonly Dictionary<string, LoxoneControl> _uuidMap = new();
     private readonly Dictionary<string, LoxoneRoom> _roomMap = new();
     private readonly Dictionary<string, LoxoneCategory> _categoryMap = new();
+    private readonly Dictionary<int, string> _operatingModes = new();
     private readonly bool _lightMode;
     private ILoxoneWebSocketClient? _wsClient;
 
@@ -43,6 +44,7 @@ public class LoxoneStructureState : ILoxoneStructureState
     public IReadOnlyDictionary<string, LoxoneControl> Controls => _uuidMap;
     public IReadOnlyDictionary<string, LoxoneRoom> Rooms => _roomMap;
     public IReadOnlyDictionary<string, LoxoneCategory> Categories => _categoryMap;
+    public IReadOnlyDictionary<int, string> GetOperatingModes() => _operatingModes;
 
     public async Task LoadAsync()
     {
@@ -72,6 +74,18 @@ public class LoxoneStructureState : ILoxoneStructureState
             {
                 var dto = kvp.Value;
                 _categoryMap[kvp.Key] = new LoxoneCategory(kvp.Key, dto.Name, dto.Type, dto.Color);
+            }
+        }
+
+        _operatingModes.Clear();
+        if (structure.OperatingModes is { } modes)
+        {
+            foreach (var kvp in modes)
+            {
+                if (int.TryParse(kvp.Key, out var id))
+                {
+                    _operatingModes[id] = kvp.Value.Name;
+                }
             }
         }
 
