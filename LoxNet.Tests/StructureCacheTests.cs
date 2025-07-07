@@ -10,6 +10,11 @@ public class StructureCacheTests
 {
     private const string SampleJson = """
 {
+  "operatingModes": {
+    "0": { "name": "Auto" },
+    "1": { "name": "Home" },
+    "2": { "name": "Away" }
+  },
   "controls": {
     "uuid-1": {
       "name": "Light",
@@ -119,6 +124,10 @@ public class StructureCacheTests
         Assert.Equal("Lighting", cat.Name);
         Assert.Equal("lights", cat.Type);
         Assert.Equal("#0000ff", cat.Color);
+
+        var modes = cache.GetOperatingModes();
+        Assert.Equal(3, modes.Count);
+        Assert.Equal("Home", modes[1]);
 
         Assert.True(cache.TryGetControl("uuid-2", out var lcCtrl));
         var lc = Assert.IsType<LightControllerV2>(lcCtrl);

@@ -32,6 +32,9 @@ public interface ILoxoneStructureState
     /// <summary>Returns all controls belonging to the specified category.</summary>
     IEnumerable<LoxoneControl> GetControlsByCategory(string categoryName);
 
+    /// <summary>Returns the available operating modes keyed by mode id.</summary>
+    IReadOnlyDictionary<int, string> GetOperatingModes();
+
     /// <summary>
     /// Attaches a WebSocket client to receive live state updates.
     /// </summary>
