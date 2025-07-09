@@ -21,6 +21,11 @@ public class UserServiceTests
         private const string UuidJson = "{\"LL\":{\"Code\":200,\"value\":\"u1\"}}";
         private const string OkJson = "{\"LL\":{\"Code\":200}}";
         private const string FieldsJson = "{\"LL\":{\"Code\":200,\"value\":{\"customField1\":\"Building\",\"customField2\":\"Space\"}}}";
+        private const string OptionsJson = "{\"LL\":{\"Code\":200,\"value\":{\"company\":[\"Loxone\"]}}}";
+        private const string LookupJson = "{\"LL\":{\"Code\":200,\"value\":{\"name\":\"admin\",\"uuid\":\"u1\"}}}";
+        private const string PeersJson = "{\"LL\":{\"Code\":200,\"value\":{\"peers\":[{\"serial\":\"p1\",\"name\":\"Peer\",\"intAddr\":\"1\",\"extAddr\":\"e\"}]}}}";
+        private const string DiscoverJson = "{\"LL\":{\"Code\":200,\"value\":{\"serial\":\"p1\",\"users\":[{\"name\":\"u\",\"uuid\":\"1\",\"used\":false}]}}}";
+        private const string PermJson = "{\"LL\":{\"Code\":200,\"value\":{}}}";
 
         public Task<JsonDocument> RequestJsonAsync(string path)
         {
@@ -35,6 +40,19 @@ public class UserServiceTests
                 var p when p.StartsWith("jdev/sps/assignusertogroup") => OkJson,
                 var p when p.StartsWith("jdev/sps/removeuserfromgroup") => OkJson,
                 var p when p.StartsWith("jdev/sps/addoredituser") => UserJson,
+                var p when p.StartsWith("jdev/sps/updateuserpwdh") => OkJson,
+                var p when p.StartsWith("jdev/sps/updateuservisupwdh") => OkJson,
+                var p when p.StartsWith("jdev/sps/updateuseraccesscode") => OkJson,
+                var p when p.StartsWith("jdev/sps/addusernfc") => OkJson,
+                var p when p.StartsWith("jdev/sps/removeusernfc") => OkJson,
+                var p when p.StartsWith("jdev/sps/getcontrolpermissions") => PermJson,
+                "jdev/sps/getuserpropertyoptions" => OptionsJson,
+                var p when p.StartsWith("jdev/sps/checkuserid") => LookupJson,
+                "jdev/sps/trustusermanagement/peers" => PeersJson,
+                var p when p.StartsWith("jdev/sps/trustusermanagement/discover") => DiscoverJson,
+                var p when p.StartsWith("jdev/sps/trustusermanagement/add") => OkJson,
+                var p when p.StartsWith("jdev/sps/trustusermanagement/remove") => OkJson,
+                var p when p.StartsWith("jdev/sps/trustusermanagement/edit") => OkJson,
                 "jdev/sps/getcustomuserfields" => FieldsJson,
                 _ => throw new System.InvalidOperationException(path)
             };
@@ -104,5 +122,54 @@ public class UserServiceTests
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/assignusertogroup/1/g1"));
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/removeuserfromgroup/1/g1"));
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/addoredituser"));
+    }
+
+    [Fact]
+    public async Task AdditionalCommands_Work()
+    {
+        var client = new MockHttpClient();
+        var svc = new UserService(client);
+
+        var pwd = await svc.UpdateUserPasswordHashAsync("1", "h");
+        var visu = await svc.UpdateUserVisuPasswordHashAsync("1", "h");
+        var code = await svc.UpdateUserAccessCodeAsync("1", "1234");
+        var addTag = await svc.AddUserNfcTagAsync("1", "n1", "t");
+        var remTag = await svc.RemoveUserNfcTagAsync("1", "n1");
+        using var perms = await svc.GetControlPermissionsAsync("c1");
+        var options = await svc.GetUserPropertyOptionsAsync();
+        var lookup = await svc.CheckUserIdAsync("uid");
+        var peers = await svc.GetTrustPeersAsync();
+        var disc = await svc.DiscoverTrustUsersAsync("p1");
+        var tAdd = await svc.TrustAddUserAsync("p1", "u1");
+        var tRem = await svc.TrustRemoveUserAsync("p1", "u1");
+        var tEdit = await svc.TrustEditAsync("{}");
+
+        Assert.Equal(200, pwd.Code);
+        Assert.Equal(200, visu.Code);
+        Assert.Equal(200, code.Code);
+        Assert.Equal(200, addTag.Code);
+        Assert.Equal(200, remTag.Code);
+        Assert.Equal(200, perms.RootElement.GetProperty("LL").GetProperty("Code").GetInt32());
+        Assert.Contains("Loxone", options["company"]);
+        Assert.Equal("admin", lookup!.Name);
+        Assert.Equal("Peer", peers[0].Name);
+        Assert.Equal("p1", disc.Serial);
+        Assert.Equal(200, tAdd.Code);
+        Assert.Equal(200, tRem.Code);
+        Assert.Equal(200, tEdit.Code);
+
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/updateuserpwdh/1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/updateuservisupwdh/1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/updateuseraccesscode/1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/addusernfc/1/n1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/removeusernfc/1/n1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/getcontrolpermissions/c1"));
+        Assert.Contains("jdev/sps/getuserpropertyoptions", client.Paths);
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/checkuserid"));
+        Assert.Contains("jdev/sps/trustusermanagement/peers", client.Paths);
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/trustusermanagement/discover/p1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/trustusermanagement/add/p1/u1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/trustusermanagement/remove/p1/u1"));
+        Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/trustusermanagement/edit/"));
     }
 }
