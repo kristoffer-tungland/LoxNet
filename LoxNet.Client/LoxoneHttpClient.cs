@@ -54,7 +54,9 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     public async Task<KeyInfo> GetKey2Async(string user)
     {
         using var doc = await RequestJsonAsync($"jdev/sys/getkey2/{Uri.EscapeDataString(user)}");
-        var value = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var value = msg.Value!.Value;
         return new KeyInfo(
             value.GetProperty("key").GetString()!,
             value.GetProperty("salt").GetString()!,
@@ -94,7 +96,9 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         var uid = Guid.NewGuid().ToString("N");
         var encInfo = Uri.EscapeDataString(info);
         using var doc = await RequestJsonAsync($"jdev/sys/getjwt/{userHash}/{user}/{permission}/{uid}/{encInfo}");
-        var val = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var val = msg.Value!.Value;
         var token = new TokenInfo(
             val.GetProperty("token").GetString()!,
             val.GetProperty("validUntil").GetInt64(),

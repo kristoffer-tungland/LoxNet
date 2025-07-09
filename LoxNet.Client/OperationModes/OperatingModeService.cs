@@ -23,7 +23,9 @@ public class OperatingModeService : IOperatingModeService
     public async Task<IReadOnlyList<OperatingModeEntry>> GetEntriesAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetentries");
-        var arr = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var arr = msg.Value!.Value;
         var dtos = JsonSerializer.Deserialize<OperatingModeEntryDto[]>(arr.GetRawText())!;
         var list = new List<OperatingModeEntry>(dtos.Length);
         foreach (var dto in dtos)
@@ -58,14 +60,18 @@ public class OperatingModeService : IOperatingModeService
     public async Task<string> GetHeatPeriodAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetheatperiod");
-        return doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!;
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        return msg.Value!.Value.GetString()!;
     }
 
     /// <inheritdoc />
     public async Task<string> GetCoolPeriodAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetcoolperiod");
-        return doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!;
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        return msg.Value!.Value.GetString()!;
     }
 
 }

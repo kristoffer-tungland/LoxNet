@@ -24,7 +24,9 @@ public class UserService : IUserService
     public async Task<IReadOnlyList<UserSummary>> GetUsersAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/getuserlist2");
-        var arr = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var arr = msg.Value!.Value;
         return JsonSerializer.Deserialize<UserSummary[]>(arr.GetRawText())!;
     }
 
@@ -32,7 +34,9 @@ public class UserService : IUserService
     public async Task<UserDetails> GetUserAsync(string uuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/getuser/{uuid}");
-        var value = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var value = msg.Value!.Value;
         return JsonSerializer.Deserialize<UserDetails>(value.GetRawText())!;
     }
 
@@ -40,7 +44,9 @@ public class UserService : IUserService
     public async Task<IReadOnlyList<UserGroup>> GetGroupsAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/getgrouplist");
-        var arr = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var arr = msg.Value!.Value;
         return JsonSerializer.Deserialize<UserGroup[]>(arr.GetRawText())!;
     }
 
@@ -48,7 +54,9 @@ public class UserService : IUserService
     public async Task<string> CreateUserAsync(string username)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/createuser/{Uri.EscapeDataString(username)}");
-        return doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!;
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        return msg.Value!.Value.GetString()!;
     }
 
     /// <inheritdoc />
@@ -76,7 +84,9 @@ public class UserService : IUserService
     public async Task<IReadOnlyList<string>> GetCustomFieldLabelsAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/getcustomuserfields");
-        var obj = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var obj = msg.Value!.Value;
         return obj.EnumerateObject()
             .OrderBy(p => p.Name)
             .Select(p => p.Value.GetString()!)
@@ -93,7 +103,9 @@ public class UserService : IUserService
     {
         var json = JsonSerializer.Serialize(user);
         using var doc = await _client.RequestJsonAsync($"jdev/sps/addoredituser/{Uri.EscapeDataString(json)}");
-        var value = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var value = msg.Value!.Value;
         return JsonSerializer.Deserialize<UserDetails>(value.GetRawText())!;
     }
 
@@ -135,14 +147,18 @@ public class UserService : IUserService
     /// <inheritdoc />
     public async Task<JsonDocument> GetControlPermissionsAsync(string uuid)
     {
-        return await _client.RequestJsonAsync($"jdev/sps/getcontrolpermissions/{uuid}");
+        var doc = await _client.RequestJsonAsync($"jdev/sps/getcontrolpermissions/{uuid}");
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
+        return doc;
     }
 
     /// <inheritdoc />
     public async Task<Dictionary<string, string[]>> GetUserPropertyOptionsAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/getuserpropertyoptions");
-        var obj = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var obj = msg.Value!.Value;
         var dict = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var prop in obj.EnumerateObject())
         {
@@ -156,7 +172,9 @@ public class UserService : IUserService
     public async Task<UserLookup?> CheckUserIdAsync(string userId)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/checkuserid/{Uri.EscapeDataString(userId)}");
-        var value = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var value = msg.Value!.Value;
         if (value.TryGetProperty("uuid", out _))
         {
             return JsonSerializer.Deserialize<UserLookup>(value.GetRawText())!;
@@ -168,7 +186,9 @@ public class UserService : IUserService
     public async Task<IReadOnlyList<TrustPeer>> GetTrustPeersAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/trustusermanagement/peers");
-        var arr = doc.RootElement.GetProperty("LL").GetProperty("value").GetProperty("peers");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var arr = msg.Value!.Value.GetProperty("peers");
         return JsonSerializer.Deserialize<TrustPeer[]>(arr.GetRawText())!;
     }
 
@@ -176,7 +196,9 @@ public class UserService : IUserService
     public async Task<TrustDiscoveryResult> DiscoverTrustUsersAsync(string peerSerial)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/trustusermanagement/discover/{peerSerial}");
-        var value = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var value = msg.Value!.Value;
         return JsonSerializer.Deserialize<TrustDiscoveryResult>(value.GetRawText())!;
     }
 

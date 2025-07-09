@@ -70,7 +70,9 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     public async Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user)
     {
         using var doc = await _http.RequestJsonAsync("jdev/sys/getkey");
-        var key = HexUtils.FromHexString(doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!);
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var key = HexUtils.FromHexString(msg.Value!.Value.GetString()!);
         var digest = LoxoneHttpClient.HmacHex(key, Encoding.UTF8.GetBytes(token), System.Security.Cryptography.HashAlgorithmName.SHA1);
         return await SendCommandAsync($"authwithtoken/{digest}/{user}");
     }
