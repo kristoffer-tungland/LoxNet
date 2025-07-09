@@ -34,24 +34,24 @@ public class OperatingModeService : IOperatingModeService
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> CreateEntryAsync(string name, string operatingMode, ICalendarModeOption mode)
+    public async Task CreateEntryAsync(string name, string operatingMode, ICalendarModeOption mode)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/calendarcreateentry/{Uri.EscapeDataString(name)}/{operatingMode}/{(int)mode.Mode}/{Uri.EscapeDataString(mode.ToQueryAttribute())}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> UpdateEntryAsync(string uuid, string name, string operatingMode, ICalendarModeOption mode)
+    public async Task UpdateEntryAsync(string uuid, string name, string operatingMode, ICalendarModeOption mode)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/calendarupdateentry/{uuid}/{Uri.EscapeDataString(name)}/{operatingMode}/{(int)mode.Mode}/{Uri.EscapeDataString(mode.ToQueryAttribute())}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> DeleteEntryAsync(string uuid)
+    public async Task DeleteEntryAsync(string uuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/calendardeleteentry/{uuid}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
@@ -68,11 +68,4 @@ public class OperatingModeService : IOperatingModeService
         return doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!;
     }
 
-    private static LoxoneMessage ParseMessage(JsonDocument doc)
-    {
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? msg = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, msg);
-    }
 }

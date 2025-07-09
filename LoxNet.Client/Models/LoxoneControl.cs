@@ -116,9 +116,6 @@ public class LoxoneControl
     protected async Task<LoxoneMessage> ExecuteCommandAsync(ILoxoneHttpClient client, string command)
     {
         using var doc = await client.RequestJsonAsync($"dev/sps/io/{UuidAction}/{command}");
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? message = ll.TryGetProperty("message", out var msg) ? msg.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, message);
+        return LoxoneMessageParser.Parse(doc);
     }
 }

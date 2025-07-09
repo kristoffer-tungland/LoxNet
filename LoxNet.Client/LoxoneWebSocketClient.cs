@@ -64,10 +64,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         await SendStringAsync(command);
         var response = await ReceiveStringAsync();
         using var doc = JsonDocument.Parse(response);
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement value = ll.TryGetProperty("value", out var v) ? v : default;
-        string? message = ll.TryGetProperty("value", out var msg) ? msg.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, message);
+        return LoxoneMessageParser.Parse(doc);
     }
 
     public async Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user)

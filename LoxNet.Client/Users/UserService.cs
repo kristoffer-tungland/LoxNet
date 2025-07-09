@@ -52,33 +52,24 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> DeleteUserAsync(string uuid)
+    public async Task DeleteUserAsync(string uuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/deleteuser/{uuid}");
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? msg = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, msg);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> AssignUserToGroupAsync(string userUuid, string groupUuid)
+    public async Task AssignUserToGroupAsync(string userUuid, string groupUuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/assignusertogroup/{userUuid}/{groupUuid}");
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? msg = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, msg);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> RemoveUserFromGroupAsync(string userUuid, string groupUuid)
+    public async Task RemoveUserFromGroupAsync(string userUuid, string groupUuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/removeuserfromgroup/{userUuid}/{groupUuid}");
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? msg = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, msg);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
@@ -107,38 +98,38 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> UpdateUserPasswordHashAsync(string uuid, string hash)
+    public async Task UpdateUserPasswordHashAsync(string uuid, string hash)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/updateuserpwdh/{uuid}/{hash}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> UpdateUserVisuPasswordHashAsync(string uuid, string hash)
+    public async Task UpdateUserVisuPasswordHashAsync(string uuid, string hash)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/updateuservisupwdh/{uuid}/{hash}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> UpdateUserAccessCodeAsync(string uuid, string accessCode)
+    public async Task UpdateUserAccessCodeAsync(string uuid, string accessCode)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/updateuseraccesscode/{uuid}/{accessCode}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> AddUserNfcTagAsync(string uuid, string nfcTagId, string name)
+    public async Task AddUserNfcTagAsync(string uuid, string nfcTagId, string name)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/addusernfc/{uuid}/{nfcTagId}/{Uri.EscapeDataString(name)}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> RemoveUserNfcTagAsync(string uuid, string nfcTagId)
+    public async Task RemoveUserNfcTagAsync(string uuid, string nfcTagId)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/removeusernfc/{uuid}/{nfcTagId}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
@@ -190,31 +181,24 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> TrustAddUserAsync(string peerSerial, string userUuid)
+    public async Task TrustAddUserAsync(string peerSerial, string userUuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/trustusermanagement/add/{peerSerial}/{userUuid}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> TrustRemoveUserAsync(string peerSerial, string userUuid)
+    public async Task TrustRemoveUserAsync(string peerSerial, string userUuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/trustusermanagement/remove/{peerSerial}/{userUuid}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> TrustEditAsync(string json)
+    public async Task TrustEditAsync(string json)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/trustusermanagement/edit/{Uri.EscapeDataString(json)}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
-    private static LoxoneMessage ParseMessage(JsonDocument doc)
-    {
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? msg = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, msg);
-    }
 }

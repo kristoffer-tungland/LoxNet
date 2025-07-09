@@ -13,6 +13,9 @@
 - All project code resides under `LoxNet.Client` and `LoxNet.Tests`.
 - C# code uses 4 spaces for indentation and `latest` language version.
 - When parsing JSON into models, use C# records and mark required fields with the `required` keyword.
+- Service methods must not return `LoxoneMessage`. Use `LoxoneMessageParser` to
+  parse responses and call `EnsureSuccess()` before returning strongly typed
+  results.
 
 ## Development Notes
 - Command execution logic lives in `LoxoneControl` and is reused by derived controls.

@@ -41,24 +41,24 @@ public interface IUserService
     /// Deletes a user.
     /// </summary>
     /// <param name="uuid">The UUID of the user to delete.</param>
-    /// <returns>A message indicating the result of the operation.</returns>
-    Task<LoxoneMessage> DeleteUserAsync(string uuid);
+    /// <returns>A task that completes when the user is removed.</returns>
+    Task DeleteUserAsync(string uuid);
 
     /// <summary>
     /// Adds a user to a group.
     /// </summary>
     /// <param name="userUuid">The user's UUID.</param>
     /// <param name="groupUuid">The group's UUID.</param>
-    /// <returns>A message indicating the result of the assignment.</returns>
-    Task<LoxoneMessage> AssignUserToGroupAsync(string userUuid, string groupUuid);
+    /// <returns>A task that completes when the assignment is done.</returns>
+    Task AssignUserToGroupAsync(string userUuid, string groupUuid);
 
     /// <summary>
     /// Removes a user from a group.
     /// </summary>
     /// <param name="userUuid">The user's UUID.</param>
     /// <param name="groupUuid">The group's UUID.</param>
-    /// <returns>A message describing the outcome.</returns>
-    Task<LoxoneMessage> RemoveUserFromGroupAsync(string userUuid, string groupUuid);
+    /// <returns>A task that completes when the user is removed.</returns>
+    Task RemoveUserFromGroupAsync(string userUuid, string groupUuid);
 
     /// <summary>
     /// Retrieves the labels for configurable custom user fields.
@@ -85,24 +85,24 @@ public interface IUserService
     /// </summary>
     /// <param name="uuid">The UUID of the user.</param>
     /// <param name="hash">The new hashed password value.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> UpdateUserPasswordHashAsync(string uuid, string hash);
+    /// <returns>A task that completes when the password is updated.</returns>
+    Task UpdateUserPasswordHashAsync(string uuid, string hash);
 
     /// <summary>
     /// Updates the hashed visualization password of a user.
     /// </summary>
     /// <param name="uuid">The UUID of the user.</param>
     /// <param name="hash">The new hashed visu password.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> UpdateUserVisuPasswordHashAsync(string uuid, string hash);
+    /// <returns>A task that completes when the password is updated.</returns>
+    Task UpdateUserVisuPasswordHashAsync(string uuid, string hash);
 
     /// <summary>
     /// Updates the access code of a user.
     /// </summary>
     /// <param name="uuid">The UUID of the user.</param>
     /// <param name="accessCode">The new numeric access code.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> UpdateUserAccessCodeAsync(string uuid, string accessCode);
+    /// <returns>A task that completes when the code is updated.</returns>
+    Task UpdateUserAccessCodeAsync(string uuid, string accessCode);
 
     /// <summary>
     /// Links an NFC tag with a user.
@@ -110,16 +110,16 @@ public interface IUserService
     /// <param name="uuid">The UUID of the user.</param>
     /// <param name="nfcTagId">The tag identifier.</param>
     /// <param name="name">The label of the tag.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> AddUserNfcTagAsync(string uuid, string nfcTagId, string name);
+    /// <returns>A task that completes when the tag is added.</returns>
+    Task AddUserNfcTagAsync(string uuid, string nfcTagId, string name);
 
     /// <summary>
     /// Removes an NFC tag from a user.
     /// </summary>
     /// <param name="uuid">The UUID of the user.</param>
     /// <param name="nfcTagId">The tag identifier.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> RemoveUserNfcTagAsync(string uuid, string nfcTagId);
+    /// <returns>A task that completes when the tag is removed.</returns>
+    Task RemoveUserNfcTagAsync(string uuid, string nfcTagId);
 
     /// <summary>
     /// Retrieves permissions assigned directly to a control.
@@ -159,21 +159,21 @@ public interface IUserService
     /// </summary>
     /// <param name="peerSerial">The peer serial.</param>
     /// <param name="userUuid">UUID of the user to add.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> TrustAddUserAsync(string peerSerial, string userUuid);
+    /// <returns>A task that completes when the user is added.</returns>
+    Task TrustAddUserAsync(string peerSerial, string userUuid);
 
     /// <summary>
     /// Removes a user from a peer via trust management.
     /// </summary>
     /// <param name="peerSerial">The peer serial.</param>
     /// <param name="userUuid">UUID of the user to remove.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> TrustRemoveUserAsync(string peerSerial, string userUuid);
+    /// <returns>A task that completes when the user is removed.</returns>
+    Task TrustRemoveUserAsync(string peerSerial, string userUuid);
 
     /// <summary>
     /// Applies a trust user edit payload.
     /// </summary>
     /// <param name="json">The JSON body describing the changes.</param>
-    /// <returns>The server response code.</returns>
-    Task<LoxoneMessage> TrustEditAsync(string json);
+    /// <returns>A task that completes when the edit is applied.</returns>
+    Task TrustEditAsync(string json);
 }

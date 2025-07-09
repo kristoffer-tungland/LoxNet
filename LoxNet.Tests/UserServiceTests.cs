@@ -100,9 +100,9 @@ public class UserServiceTests
         var user = await svc.GetUserAsync("1");
         var groups = await svc.GetGroupsAsync();
         var uuid = await svc.CreateUserAsync("name");
-        var del = await svc.DeleteUserAsync("1");
-        var add = await svc.AssignUserToGroupAsync("1", "g1");
-        var rem = await svc.RemoveUserFromGroupAsync("1", "g1");
+        await svc.DeleteUserAsync("1");
+        await svc.AssignUserToGroupAsync("1", "g1");
+        await svc.RemoveUserFromGroupAsync("1", "g1");
         var created = await svc.AddUserAsync(new AddUser { Name = "x" });
         var edit = await svc.EditUserAsync(new EditUser { Name = "x", Uuid = "1" });
 
@@ -110,9 +110,6 @@ public class UserServiceTests
         Assert.Single(groups);
         Assert.Equal(UserGroupType.AdminDeprecated, groups[0].Type);
         Assert.Equal("u1", uuid);
-        Assert.Equal(200, del.Code);
-        Assert.Equal(200, add.Code);
-        Assert.Equal(200, rem.Code);
         Assert.Equal("admin", created.Name);
         Assert.Equal("admin", edit.Name);
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/getuser/1"));
@@ -130,33 +127,25 @@ public class UserServiceTests
         var client = new MockHttpClient();
         var svc = new UserService(client);
 
-        var pwd = await svc.UpdateUserPasswordHashAsync("1", "h");
-        var visu = await svc.UpdateUserVisuPasswordHashAsync("1", "h");
-        var code = await svc.UpdateUserAccessCodeAsync("1", "1234");
-        var addTag = await svc.AddUserNfcTagAsync("1", "n1", "t");
-        var remTag = await svc.RemoveUserNfcTagAsync("1", "n1");
+        await svc.UpdateUserPasswordHashAsync("1", "h");
+        await svc.UpdateUserVisuPasswordHashAsync("1", "h");
+        await svc.UpdateUserAccessCodeAsync("1", "1234");
+        await svc.AddUserNfcTagAsync("1", "n1", "t");
+        await svc.RemoveUserNfcTagAsync("1", "n1");
         using var perms = await svc.GetControlPermissionsAsync("c1");
         var options = await svc.GetUserPropertyOptionsAsync();
         var lookup = await svc.CheckUserIdAsync("uid");
         var peers = await svc.GetTrustPeersAsync();
         var disc = await svc.DiscoverTrustUsersAsync("p1");
-        var tAdd = await svc.TrustAddUserAsync("p1", "u1");
-        var tRem = await svc.TrustRemoveUserAsync("p1", "u1");
-        var tEdit = await svc.TrustEditAsync("{}");
+        await svc.TrustAddUserAsync("p1", "u1");
+        await svc.TrustRemoveUserAsync("p1", "u1");
+        await svc.TrustEditAsync("{}");
 
-        Assert.Equal(200, pwd.Code);
-        Assert.Equal(200, visu.Code);
-        Assert.Equal(200, code.Code);
-        Assert.Equal(200, addTag.Code);
-        Assert.Equal(200, remTag.Code);
         Assert.Equal(200, perms.RootElement.GetProperty("LL").GetProperty("Code").GetInt32());
         Assert.Contains("Loxone", options["company"]);
         Assert.Equal("admin", lookup!.Name);
         Assert.Equal("Peer", peers[0].Name);
         Assert.Equal("p1", disc.Serial);
-        Assert.Equal(200, tAdd.Code);
-        Assert.Equal(200, tRem.Code);
-        Assert.Equal(200, tEdit.Code);
 
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/updateuserpwdh/1"));
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/updateuservisupwdh/1"));
