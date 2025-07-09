@@ -65,10 +65,10 @@ public class StructureCacheTests
         public event EventHandler<string>? MessageReceived;
         public Task ConnectAsync() => Task.CompletedTask;
         public Task CloseAsync() => Task.CompletedTask;
-        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user) => Task.FromResult(new LoxoneMessage(0, null, null));
-        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user) => Task.FromResult(new LoxoneMessage(0, null, null));
+        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user) => Task.FromResult(new LoxoneMessage(0, default, null));
+        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user) => Task.FromResult(new LoxoneMessage(0, default, null));
         public Task KeepAliveAsync() => Task.CompletedTask;
-        public Task<LoxoneMessage> CommandAsync(string path) => Task.FromResult(new LoxoneMessage(0, null, null));
+        public Task<LoxoneMessage> CommandAsync(string path) => Task.FromResult(new LoxoneMessage(0, default, null));
         public Task ListenAsync(System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

@@ -26,7 +26,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync("jdev/sps/getuserlist2");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var arr = msg.Value!.Value;
+        var arr = msg.Value;
         return JsonSerializer.Deserialize<UserSummary[]>(arr.GetRawText())!;
     }
 
@@ -36,7 +36,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync($"jdev/sps/getuser/{uuid}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var value = msg.Value!.Value;
+        var value = msg.Value;
         return JsonSerializer.Deserialize<UserDetails>(value.GetRawText())!;
     }
 
@@ -46,7 +46,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync("jdev/sps/getgrouplist");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var arr = msg.Value!.Value;
+        var arr = msg.Value;
         return JsonSerializer.Deserialize<UserGroup[]>(arr.GetRawText())!;
     }
 
@@ -56,7 +56,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync($"jdev/sps/createuser/{Uri.EscapeDataString(username)}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        return msg.Value!.Value.GetString()!;
+        return msg.Value.GetString()!;
     }
 
     /// <inheritdoc />
@@ -86,7 +86,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync("jdev/sps/getcustomuserfields");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var obj = msg.Value!.Value;
+        var obj = msg.Value;
         return obj.EnumerateObject()
             .OrderBy(p => p.Name)
             .Select(p => p.Value.GetString()!)
@@ -105,7 +105,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync($"jdev/sps/addoredituser/{Uri.EscapeDataString(json)}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var value = msg.Value!.Value;
+        var value = msg.Value;
         return JsonSerializer.Deserialize<UserDetails>(value.GetRawText())!;
     }
 
@@ -158,7 +158,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync("jdev/sps/getuserpropertyoptions");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var obj = msg.Value!.Value;
+        var obj = msg.Value;
         var dict = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var prop in obj.EnumerateObject())
         {
@@ -174,7 +174,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync($"jdev/sps/checkuserid/{Uri.EscapeDataString(userId)}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var value = msg.Value!.Value;
+        var value = msg.Value;
         if (value.TryGetProperty("uuid", out _))
         {
             return JsonSerializer.Deserialize<UserLookup>(value.GetRawText())!;
@@ -188,7 +188,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync("jdev/sps/trustusermanagement/peers");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var arr = msg.Value!.Value.GetProperty("peers");
+        var arr = msg.Value.GetProperty("peers");
         return JsonSerializer.Deserialize<TrustPeer[]>(arr.GetRawText())!;
     }
 
@@ -198,7 +198,7 @@ public class UserService : IUserService
         using var doc = await _client.RequestJsonAsync($"jdev/sps/trustusermanagement/discover/{peerSerial}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var value = msg.Value!.Value;
+        var value = msg.Value;
         return JsonSerializer.Deserialize<TrustDiscoveryResult>(value.GetRawText())!;
     }
 

@@ -12,7 +12,7 @@ public static class LoxoneMessageParser
     public static LoxoneMessage Parse(JsonDocument doc)
     {
         var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
+        var value = ll.TryGetProperty("value", out var v) ? v : default;
         string? message = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
         return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, message);
     }

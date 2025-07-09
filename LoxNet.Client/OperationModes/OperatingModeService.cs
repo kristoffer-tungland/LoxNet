@@ -25,7 +25,7 @@ public class OperatingModeService : IOperatingModeService
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetentries");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var arr = msg.Value!.Value;
+        var arr = msg.Value;
         var dtos = JsonSerializer.Deserialize<OperatingModeEntryDto[]>(arr.GetRawText())!;
         var list = new List<OperatingModeEntry>(dtos.Length);
         foreach (var dto in dtos)
@@ -62,7 +62,7 @@ public class OperatingModeService : IOperatingModeService
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetheatperiod");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        return msg.Value!.Value.GetString()!;
+        return msg.Value.GetString()!;
     }
 
     /// <inheritdoc />
@@ -71,7 +71,7 @@ public class OperatingModeService : IOperatingModeService
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetcoolperiod");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        return msg.Value!.Value.GetString()!;
+        return msg.Value.GetString()!;
     }
 
 }

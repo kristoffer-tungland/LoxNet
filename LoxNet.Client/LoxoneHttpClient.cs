@@ -56,7 +56,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         using var doc = await RequestJsonAsync($"jdev/sys/getkey2/{Uri.EscapeDataString(user)}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var value = msg.Value!.Value;
+        var value = msg.Value;
         return new KeyInfo(
             value.GetProperty("key").GetString()!,
             value.GetProperty("salt").GetString()!,
@@ -98,7 +98,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         using var doc = await RequestJsonAsync($"jdev/sys/getjwt/{userHash}/{user}/{permission}/{uid}/{encInfo}");
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
-        var val = msg.Value!.Value;
+        var val = msg.Value;
         var token = new TokenInfo(
             val.GetProperty("token").GetString()!,
             val.GetProperty("validUntil").GetInt64(),
