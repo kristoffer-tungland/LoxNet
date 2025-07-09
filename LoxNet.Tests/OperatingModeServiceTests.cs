@@ -67,15 +67,12 @@ public class OperatingModeServiceTests
         var svc = new OperatingModeService(client);
 
         var mode = new YearlyDateOption(CalendarMonth.January, 1);
-        var c1 = await svc.CreateEntryAsync("Name", "Party", mode);
-        var c2 = await svc.UpdateEntryAsync("1", "Name", "Party", mode);
-        var c3 = await svc.DeleteEntryAsync("1");
+        await svc.CreateEntryAsync("Name", "Party", mode);
+        await svc.UpdateEntryAsync("1", "Name", "Party", mode);
+        await svc.DeleteEntryAsync("1");
         var heat = await svc.GetHeatPeriodAsync();
         var cool = await svc.GetCoolPeriodAsync();
 
-        Assert.Equal(200, c1.Code);
-        Assert.Equal(200, c2.Code);
-        Assert.Equal(200, c3.Code);
         Assert.Equal("10-15/04-15", heat);
         Assert.Equal("06-01/09-30", cool);
         Assert.Contains(client.Paths, p => p.StartsWith("jdev/sps/calendarcreateentry"));

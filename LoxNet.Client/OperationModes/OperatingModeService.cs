@@ -23,7 +23,9 @@ public class OperatingModeService : IOperatingModeService
     public async Task<IReadOnlyList<OperatingModeEntry>> GetEntriesAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetentries");
-        var arr = doc.RootElement.GetProperty("LL").GetProperty("value");
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        var arr = msg.Value;
         var dtos = JsonSerializer.Deserialize<OperatingModeEntryDto[]>(arr.GetRawText())!;
         var list = new List<OperatingModeEntry>(dtos.Length);
         foreach (var dto in dtos)
@@ -34,45 +36,42 @@ public class OperatingModeService : IOperatingModeService
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> CreateEntryAsync(string name, string operatingMode, ICalendarModeOption mode)
+    public async Task CreateEntryAsync(string name, string operatingMode, ICalendarModeOption mode)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/calendarcreateentry/{Uri.EscapeDataString(name)}/{operatingMode}/{(int)mode.Mode}/{Uri.EscapeDataString(mode.ToQueryAttribute())}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> UpdateEntryAsync(string uuid, string name, string operatingMode, ICalendarModeOption mode)
+    public async Task UpdateEntryAsync(string uuid, string name, string operatingMode, ICalendarModeOption mode)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/calendarupdateentry/{uuid}/{Uri.EscapeDataString(name)}/{operatingMode}/{(int)mode.Mode}/{Uri.EscapeDataString(mode.ToQueryAttribute())}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
-    public async Task<LoxoneMessage> DeleteEntryAsync(string uuid)
+    public async Task DeleteEntryAsync(string uuid)
     {
         using var doc = await _client.RequestJsonAsync($"jdev/sps/calendardeleteentry/{uuid}");
-        return ParseMessage(doc);
+        LoxoneMessageParser.Parse(doc).EnsureSuccess();
     }
 
     /// <inheritdoc />
     public async Task<string> GetHeatPeriodAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetheatperiod");
-        return doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!;
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        return msg.Value.GetString()!;
     }
 
     /// <inheritdoc />
     public async Task<string> GetCoolPeriodAsync()
     {
         using var doc = await _client.RequestJsonAsync("jdev/sps/calendargetcoolperiod");
-        return doc.RootElement.GetProperty("LL").GetProperty("value").GetString()!;
+        var msg = LoxoneMessageParser.Parse(doc);
+        msg.EnsureSuccess();
+        return msg.Value.GetString()!;
     }
 
-    private static LoxoneMessage ParseMessage(JsonDocument doc)
-    {
-        var ll = doc.RootElement.GetProperty("LL");
-        JsonElement? value = ll.TryGetProperty("value", out var v) ? v : (JsonElement?)null;
-        string? msg = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, msg);
-    }
 }
