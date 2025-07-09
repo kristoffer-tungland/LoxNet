@@ -1,16 +1,17 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LoxNet;
 
 public interface ILoxoneWebSocketClient : IAsyncDisposable
 {
-    Task ConnectAsync();
-    Task CloseAsync();
-    Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user);
-    Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user);
-    Task KeepAliveAsync();
-    Task<LoxoneMessage> CommandAsync(string path);
+    Task ConnectAsync(CancellationToken cancellationToken = default);
+    Task CloseAsync(CancellationToken cancellationToken = default);
+    Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default);
+    Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default);
+    Task KeepAliveAsync(CancellationToken cancellationToken = default);
+    Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Raised when a raw message is received from the websocket.
@@ -20,5 +21,5 @@ public interface ILoxoneWebSocketClient : IAsyncDisposable
     /// <summary>
     /// Starts listening for incoming messages.
     /// </summary>
-    Task ListenAsync(System.Threading.CancellationToken cancellationToken = default);
+    Task ListenAsync(CancellationToken cancellationToken = default);
 }

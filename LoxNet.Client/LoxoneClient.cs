@@ -27,7 +27,7 @@ public class LoxoneClient : ILoxoneClient
 
     public async ValueTask DisposeAsync()
     {
-        await Http.DisposeAsync();
-        await WebSocket.DisposeAsync();
+        await Http.DisposeAsync().ConfigureAwait(false);
+        await WebSocket.DisposeAsync().ConfigureAwait(false);
     }
 }

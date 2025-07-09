@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LoxNet;
@@ -43,17 +44,17 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 
     private string BaseUrl => _http.BaseAddress?.ToString().TrimEnd('/') ?? $"{(Options.Secure ? "https" : "http")}://{Options.Host}:{Options.Port}";
 
-    public async Task<JsonDocument> RequestJsonAsync(string path)
+    public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
     {
-        using var resp = await _http.GetAsync($"{BaseUrl}/{path}");
+        using var resp = await _http.GetAsync($"{BaseUrl}/{path}", cancellationToken).ConfigureAwait(false);
         resp.EnsureSuccessStatusCode();
-        var stream = await resp.Content.ReadAsStreamAsync();
-        return await JsonDocument.ParseAsync(stream);
+        var stream = await resp.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<KeyInfo> GetKey2Async(string user)
+    public async Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default)
     {
-        using var doc = await RequestJsonAsync($"jdev/sys/getkey2/{Uri.EscapeDataString(user)}");
+        using var doc = await RequestJsonAsync($"jdev/sys/getkey2/{Uri.EscapeDataString(user)}", cancellationToken).ConfigureAwait(false);
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
         var value = msg.Value;
@@ -85,9 +86,9 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         return sb.ToString();
     }
 
-    public async Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info)
+    public async Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default)
     {
-        var keyInfo = await GetKey2Async(user);
+        var keyInfo = await GetKey2Async(user, cancellationToken).ConfigureAwait(false);
         var keyBytes = HexUtils.FromHexString(keyInfo.Key);
         var algoName = keyInfo.HashAlg.Equals("sha256", StringComparison.OrdinalIgnoreCase) ? HashAlgorithmName.SHA256 : HashAlgorithmName.SHA1;
         using HashAlgorithm algo = algoName == HashAlgorithmName.SHA256 ? SHA256.Create() : SHA1.Create();
@@ -95,7 +96,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         var userHash = HmacHex(keyBytes, Encoding.UTF8.GetBytes($"{user}:{pwHash}"), algoName);
         var uid = Guid.NewGuid().ToString("N");
         var encInfo = Uri.EscapeDataString(info);
-        using var doc = await RequestJsonAsync($"jdev/sys/getjwt/{userHash}/{user}/{permission}/{uid}/{encInfo}");
+        using var doc = await RequestJsonAsync($"jdev/sys/getjwt/{userHash}/{user}/{permission}/{uid}/{encInfo}", cancellationToken).ConfigureAwait(false);
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
         var val = msg.Value;

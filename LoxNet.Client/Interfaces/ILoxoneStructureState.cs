@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LoxNet;
@@ -18,7 +19,7 @@ public interface ILoxoneStructureState
     IReadOnlyDictionary<string, LoxoneCategory> Categories { get; }
 
     /// <summary>Downloads and parses the <c>LoxApp3.json</c> structure file.</summary>
-    Task LoadAsync();
+    Task LoadAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves a control by its UUID.</summary>
     bool TryGetControl(string uuid, out LoxoneControl? control);

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using LoxNet;
 
@@ -10,20 +11,20 @@ namespace LoxNet.OperationModes;
 public interface IOperatingModeService
 {
     /// <summary>Retrieves all schedule entries.</summary>
-    Task<IReadOnlyList<OperatingModeEntry>> GetEntriesAsync();
+    Task<IReadOnlyList<OperatingModeEntry>> GetEntriesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Creates a new schedule entry.</summary>
-    Task CreateEntryAsync(string name, string operatingMode, ICalendarModeOption mode);
+    Task CreateEntryAsync(string name, string operatingMode, ICalendarModeOption mode, CancellationToken cancellationToken = default);
 
     /// <summary>Updates an existing schedule entry.</summary>
-    Task UpdateEntryAsync(string uuid, string name, string operatingMode, ICalendarModeOption mode);
+    Task UpdateEntryAsync(string uuid, string name, string operatingMode, ICalendarModeOption mode, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes an entry by its UUID.</summary>
-    Task DeleteEntryAsync(string uuid);
+    Task DeleteEntryAsync(string uuid, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the configured heating period string.</summary>
-    Task<string> GetHeatPeriodAsync();
+    Task<string> GetHeatPeriodAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Gets the configured cooling period string.</summary>
-    Task<string> GetCoolPeriodAsync();
+    Task<string> GetCoolPeriodAsync(CancellationToken cancellationToken = default);
 }

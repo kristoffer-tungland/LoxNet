@@ -46,9 +46,9 @@ public class LoxoneStructureState : ILoxoneStructureState
     public IReadOnlyDictionary<string, LoxoneCategory> Categories => _categoryMap;
     public IReadOnlyDictionary<int, string> GetOperatingModes() => _operatingModes;
 
-    public async Task LoadAsync()
+    public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        using var doc = await _httpClient.RequestJsonAsync("data/LoxApp3.json");
+        using var doc = await _httpClient.RequestJsonAsync("data/LoxApp3.json", cancellationToken).ConfigureAwait(false);
 
         _uuidMap.Clear();
         _roomMap.Clear();

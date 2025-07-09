@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using LoxNet;
@@ -20,7 +21,7 @@ public class OperatingModeServiceTests
         private const string HeatJson = "{\"LL\": { \"Code\": 200, \"value\": \"10-15/04-15\" } }";
         private const string CoolJson = "{\"LL\": { \"Code\": 200, \"value\": \"06-01/09-30\" } }";
 
-        public Task<JsonDocument> RequestJsonAsync(string path)
+        public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
         {
             Paths.Add(path);
             var json = path switch
@@ -36,8 +37,8 @@ public class OperatingModeServiceTests
             return Task.FromResult(JsonDocument.Parse(json));
         }
 
-        public Task<KeyInfo> GetKey2Async(string user) => throw new System.NotImplementedException();
-        public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info) => throw new System.NotImplementedException();
+        public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
+        public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

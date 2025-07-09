@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace LoxNet;
 
@@ -23,17 +24,17 @@ public class LightController : LoxoneControl<LightControllerDetails>
     /// <summary>
     /// Turns the light controller on.
     /// </summary>
-    public async Task<LoxoneMessage> SwitchOnAsync(ILoxoneHttpClient client)
+    public async Task<LoxoneMessage> SwitchOnAsync(ILoxoneHttpClient client, CancellationToken cancellationToken = default)
     {
-        return await ExecuteCommandAsync(client, "on");
+        return await ExecuteCommandAsync(client, "on", cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Turns the light controller off.
     /// </summary>
-    public async Task<LoxoneMessage> SwitchOffAsync(ILoxoneHttpClient client)
+    public async Task<LoxoneMessage> SwitchOffAsync(ILoxoneHttpClient client, CancellationToken cancellationToken = default)
     {
-        return await ExecuteCommandAsync(client, "off");
+        return await ExecuteCommandAsync(client, "off", cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -41,8 +42,8 @@ public class LightController : LoxoneControl<LightControllerDetails>
     /// </summary>
     /// <param name="client">HTTP client used for the command.</param>
     /// <param name="scene">Scene number to activate.</param>
-    public async Task<LoxoneMessage> SetSceneAsync(ILoxoneHttpClient client, int scene)
+    public async Task<LoxoneMessage> SetSceneAsync(ILoxoneHttpClient client, int scene, CancellationToken cancellationToken = default)
     {
-        return await ExecuteCommandAsync(client, $"scene/{scene}");
+        return await ExecuteCommandAsync(client, $"scene/{scene}", cancellationToken).ConfigureAwait(false);
     }
 }

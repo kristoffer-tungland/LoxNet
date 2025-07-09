@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace LoxNet;
 
@@ -113,9 +114,9 @@ public class LoxoneControl
     /// </summary>
     /// <param name="client">HTTP client used to communicate with the Miniserver.</param>
     /// <param name="command">Command path to append after the action UUID.</param>
-    protected async Task<LoxoneMessage> ExecuteCommandAsync(ILoxoneHttpClient client, string command)
+    protected async Task<LoxoneMessage> ExecuteCommandAsync(ILoxoneHttpClient client, string command, CancellationToken cancellationToken = default)
     {
-        using var doc = await client.RequestJsonAsync($"dev/sps/io/{UuidAction}/{command}");
+        using var doc = await client.RequestJsonAsync($"dev/sps/io/{UuidAction}/{command}", cancellationToken).ConfigureAwait(false);
         return LoxoneMessageParser.Parse(doc);
     }
 }
