@@ -10,7 +10,6 @@ namespace LoxNet;
 public class TokenRefresher
 {
     private readonly ILoxoneClient _client;
-    private readonly string _user;
     private readonly TimeSpan _refreshWindow;
 
     /// <summary>
@@ -19,10 +18,9 @@ public class TokenRefresher
     public Func<CancellationToken, Task<TokenInfo>> RefreshDelegate { get; }
 
     /// <summary>Creates the refresher.</summary>
-    public TokenRefresher(ILoxoneClient client, string user, TimeSpan? refreshWindow = null)
+    public TokenRefresher(ILoxoneClient client, TimeSpan? refreshWindow = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
-        _user = user ?? throw new ArgumentNullException(nameof(user));
         _refreshWindow = refreshWindow ?? TimeSpan.FromSeconds(30);
         RefreshDelegate = EnsureValidTokenAsync;
     }
@@ -36,7 +34,10 @@ public class TokenRefresher
         var now = DateTimeOffset.UtcNow;
         var expiry = DateTimeOffset.FromUnixTimeSeconds(token.ValidUntil);
         if (expiry - now <= _refreshWindow)
-            token = await _client.Http.RefreshJwtAsync(_client.WebSocket, _user, cancellationToken).ConfigureAwait(false);
+        {
+            var user = _client.Username ?? throw new InvalidOperationException("Client is not logged in");
+            token = await _client.Http.RefreshJwtAsync(_client.WebSocket, user, cancellationToken).ConfigureAwait(false);
+        }
         return token;
     }
 }

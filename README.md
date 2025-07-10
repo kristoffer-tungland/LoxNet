@@ -44,7 +44,7 @@ The `TokenRefresher` class helps keeping the JWT valid:
 
 ```csharp
 await client.LoginAsync("admin", "password");
-var refresher = new TokenRefresher(client, "admin");
+var refresher = new TokenRefresher(client);
 
 // call before sending commands to ensure token validity
 await refresher.EnsureValidTokenAsync();

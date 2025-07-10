@@ -47,9 +47,11 @@ public class TokenRefresherTests
         public ILoxoneHttpClient HttpIfc => Http;
         public MockWs Ws { get; } = new();
         public ILoxoneWebSocketClient WebSocketIfc => Ws;
+        public string? Username { get; set; }
 
         ILoxoneHttpClient ILoxoneClient.Http => Http;
         ILoxoneWebSocketClient ILoxoneClient.WebSocket => Ws;
+        string? ILoxoneClient.Username => Username;
         public Task LoginAsync(string user, string password, int permission = 4, string info = "LoxNet", CancellationToken cancellationToken = default) => Task.CompletedTask;
         ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -57,9 +59,9 @@ public class TokenRefresherTests
     [Fact]
     public async Task EnsureValidTokenAsync_UsesExistingToken()
     {
-        var client = new MockClient();
+        var client = new MockClient { Username = "user" };
         client.Http.LastToken = new TokenInfo("t", DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds(), 0, false, "k");
-        var refresher = new TokenRefresher(client, "user");
+        var refresher = new TokenRefresher(client);
 
         var tok = await refresher.EnsureValidTokenAsync();
 
@@ -70,10 +72,10 @@ public class TokenRefresherTests
     [Fact]
     public async Task EnsureValidTokenAsync_RefreshesExpired()
     {
-        var client = new MockClient();
+        var client = new MockClient { Username = "user" };
         client.Http.LastToken = new TokenInfo("old", DateTimeOffset.UtcNow.AddSeconds(-1).ToUnixTimeSeconds(), 0, false, "k");
         client.Http.RefreshResult = new TokenInfo("new", DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds(), 0, false, "k");
-        var refresher = new TokenRefresher(client, "user");
+        var refresher = new TokenRefresher(client);
 
         var tok = await refresher.EnsureValidTokenAsync();
 
@@ -84,10 +86,10 @@ public class TokenRefresherTests
     [Fact]
     public async Task EnsureValidTokenAsync_RefreshesNearExpiry()
     {
-        var client = new MockClient();
+        var client = new MockClient { Username = "user" };
         client.Http.LastToken = new TokenInfo("old", DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds(), 0, false, "k");
         client.Http.RefreshResult = new TokenInfo("new", DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds(), 0, false, "k");
-        var refresher = new TokenRefresher(client, "user", TimeSpan.FromSeconds(30));
+        var refresher = new TokenRefresher(client, TimeSpan.FromSeconds(30));
 
         var tok = await refresher.EnsureValidTokenAsync();
 
@@ -98,10 +100,10 @@ public class TokenRefresherTests
     [Fact]
     public async Task Delegate_InvokesEnsureValidTokenAsync()
     {
-        var client = new MockClient();
+        var client = new MockClient { Username = "user" };
         client.Http.LastToken = new TokenInfo("old", DateTimeOffset.UtcNow.AddSeconds(-1).ToUnixTimeSeconds(), 0, false, "k");
         client.Http.RefreshResult = new TokenInfo("new", DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds(), 0, false, "k");
-        var refresher = new TokenRefresher(client, "user");
+        var refresher = new TokenRefresher(client);
 
         var tok = await refresher.RefreshDelegate(CancellationToken.None);
 

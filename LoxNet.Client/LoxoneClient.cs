@@ -8,6 +8,7 @@ public class LoxoneClient : ILoxoneClient
 {
     public ILoxoneHttpClient Http { get; }
     public ILoxoneWebSocketClient WebSocket { get; }
+    public string? Username { get; private set; }
 
     public LoxoneClient(LoxoneConnectionOptions options)
     {
@@ -33,6 +34,7 @@ public class LoxoneClient : ILoxoneClient
     {
         _ = await Http.GetJwtAsync(user, password, permission, info, cancellationToken).ConfigureAwait(false);
         await WebSocket.ConnectAndAuthenticateAsync(user, cancellationToken).ConfigureAwait(false);
+        Username = user;
     }
 
     public async ValueTask DisposeAsync()

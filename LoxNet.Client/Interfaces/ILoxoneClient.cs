@@ -6,6 +6,11 @@ public interface ILoxoneClient : IAsyncDisposable
     ILoxoneWebSocketClient WebSocket { get; }
 
     /// <summary>
+    /// The username used for the current login session.
+    /// </summary>
+    string? Username { get; }
+
+    /// <summary>
     /// Retrieves a JWT token and authenticates the websocket connection.
     /// </summary>
     /// <param name="user">Username to authenticate.</param>
