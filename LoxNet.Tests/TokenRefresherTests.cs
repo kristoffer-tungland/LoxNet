@@ -50,6 +50,7 @@ public class TokenRefresherTests
 
         ILoxoneHttpClient ILoxoneClient.Http => Http;
         ILoxoneWebSocketClient ILoxoneClient.WebSocket => Ws;
+        public Task LoginAsync(string user, string password, int permission = 4, string info = "LoxNet", CancellationToken cancellationToken = default) => Task.CompletedTask;
         ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
     }
 

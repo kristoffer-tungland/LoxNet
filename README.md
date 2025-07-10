@@ -7,8 +7,7 @@ using LoxNet;
 
 var options = new LoxoneConnectionOptions("192.168.1.77", 443, secure: true);
 var client = new LoxoneClient(options);
-var jwt = await client.Http.GetJwtAsync("admin", "password", 4, "Example client");
-await client.WebSocket.ConnectAndAuthenticateAsync("admin");
+await client.LoginAsync("admin", "password");
 await client.WebSocket.KeepAliveAsync();
 await client.WebSocket.CloseAsync();
 ```
@@ -17,8 +16,7 @@ For manual usage without DI:
 
 ```csharp
 var client = new LoxoneClient(new LoxoneConnectionOptions("192.168.1.77", 443, secure: true));
-var jwt = await client.Http.GetJwtAsync("admin", "password", 4, "Example client");
-await client.WebSocket.ConnectAndAuthenticateAsync("admin");
+await client.LoginAsync("admin", "password");
 ```
 
 ## Structure Cache
@@ -37,5 +35,18 @@ foreach (var c in cache.GetControlsByRoom("Bathroom"))
 
 foreach (var c in cache.GetControlsByCategory("Lighting"))
     Console.WriteLine($"{c.Name} ({c.Uuid})");
+```
+
+## Login and token refresh
+
+Use `LoginAsync` to authenticate and establish the websocket connection.
+The `TokenRefresher` class helps keeping the JWT valid:
+
+```csharp
+await client.LoginAsync("admin", "password");
+var refresher = new TokenRefresher(client, "admin");
+
+// call before sending commands to ensure token validity
+await refresher.EnsureValidTokenAsync();
 ```
 
