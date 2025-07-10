@@ -111,6 +111,44 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         return token;
     }
 
+    /// <summary>
+    /// Refreshes the currently stored JWT token using the websocket API.
+    /// </summary>
+    /// <param name="wsClient">The websocket client to use.</param>
+    /// <param name="user">The user associated with the token.</param>
+    /// <returns>The refreshed <see cref="TokenInfo"/>.</returns>
+    public async Task<TokenInfo> RefreshJwtAsync(ILoxoneWebSocketClient wsClient, string user, CancellationToken cancellationToken = default)
+    {
+        if (wsClient is null) throw new ArgumentNullException(nameof(wsClient));
+
+        var current = LastToken ?? throw new InvalidOperationException("No JWT token available");
+
+        using var keyDoc = await RequestJsonAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
+        var keyMsg = LoxoneMessageParser.Parse(keyDoc);
+        keyMsg.EnsureSuccess();
+        var key = HexUtils.FromHexString(keyMsg.Value.GetString()!);
+
+        var tokenHash = HmacHex(key, Encoding.UTF8.GetBytes(current.Token), HashAlgorithmName.SHA1);
+        var msg = await wsClient.CommandAsync($"refreshjwt/{tokenHash}/{user}", cancellationToken).ConfigureAwait(false);
+        msg.EnsureSuccess();
+        var val = msg.Value;
+
+        var token = val.GetProperty("token").GetString()!;
+        var validUntil = val.GetProperty("validUntil").GetInt64();
+        var unsecure = val.GetProperty("unsecurePass").GetBoolean();
+        var rights = current.TokenRights;
+        if (val.TryGetProperty("tokenRights", out JsonElement r))
+            rights = r.GetInt32();
+        var keyStr = current.Key;
+        if (val.TryGetProperty("key", out JsonElement k))
+            keyStr = k.GetString()!;
+
+        var info = new TokenInfo(token, validUntil, rights, unsecure, keyStr);
+        LastToken = info;
+
+        return info;
+    }
+
     public ValueTask DisposeAsync()
     {
         if (_disposeHttpClient)

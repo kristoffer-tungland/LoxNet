@@ -39,6 +39,7 @@ public class OperatingModeServiceTests
 
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
+        public Task<TokenInfo> RefreshJwtAsync(ILoxoneWebSocketClient wsClient, string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
