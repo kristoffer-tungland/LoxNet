@@ -1,3 +1,5 @@
+using System.Threading;
+
 namespace LoxNet;
 
 public interface ILoxoneClient : IAsyncDisposable
@@ -9,6 +11,11 @@ public interface ILoxoneClient : IAsyncDisposable
     /// The username used for the current login session.
     /// </summary>
     string? Username { get; }
+
+    /// <summary>
+    /// Ensures the currently stored JWT token is valid, refreshing it when needed.
+    /// </summary>
+    Task EnsureValidTokenAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a JWT token and authenticates the websocket connection.

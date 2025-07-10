@@ -40,13 +40,12 @@ foreach (var c in cache.GetControlsByCategory("Lighting"))
 ## Login and token refresh
 
 Use `LoginAsync` to authenticate and establish the websocket connection.
-The `TokenRefresher` class helps keeping the JWT valid:
+`LoxoneClient` tracks the token validity and refreshes when needed:
 
 ```csharp
 await client.LoginAsync("admin", "password");
-var refresher = new TokenRefresher(client);
 
 // call before sending commands to ensure token validity
-await refresher.EnsureValidTokenAsync();
+await client.EnsureValidTokenAsync();
 ```
 
