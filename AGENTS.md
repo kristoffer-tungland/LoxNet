@@ -26,3 +26,4 @@
 - JSON from `LoxApp3.json` is deserialized into DTO classes decorated with `JsonPropertyName` attributes.
 - Command methods on control classes and detail properties include XML documentation.
 - Typed controls like `LightControllerV2` and `SwitchControl` expose `Details` objects parsed during factory creation.
+- All async methods expose an optional `CancellationToken` parameter and await calls using `ConfigureAwait(false)`.

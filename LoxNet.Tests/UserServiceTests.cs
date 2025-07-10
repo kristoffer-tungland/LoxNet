@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using LoxNet;
@@ -27,7 +28,7 @@ public class UserServiceTests
         private const string DiscoverJson = "{\"LL\":{\"Code\":200,\"value\":{\"serial\":\"p1\",\"users\":[{\"name\":\"u\",\"uuid\":\"1\",\"used\":false}]}}}";
         private const string PermJson = "{\"LL\":{\"Code\":200,\"value\":{}}}";
 
-        public Task<JsonDocument> RequestJsonAsync(string path)
+        public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
         {
             Paths.Add(path);
             var json = path switch
@@ -59,8 +60,8 @@ public class UserServiceTests
             return Task.FromResult(JsonDocument.Parse(json));
         }
 
-        public Task<KeyInfo> GetKey2Async(string user) => throw new System.NotImplementedException();
-        public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info) => throw new System.NotImplementedException();
+        public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
+        public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
