@@ -1,4 +1,5 @@
 using System;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ public class LoxoneClient : ILoxoneClient
     private readonly ILoxoneHttpClient _httpClient;
     private readonly ILoxoneWebSocketClient _wsClient;
     private readonly TimeSpan _refreshWindow;
+    private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
     public ILoxoneHttpClient Http { get; }
     public ILoxoneWebSocketClient WebSocket { get; }
@@ -58,10 +60,26 @@ public class LoxoneClient : ILoxoneClient
             return;
 
         var expiry = DateTimeOffset.FromUnixTimeSeconds(token.ValidUntil);
-        if (expiry - DateTimeOffset.UtcNow <= _refreshWindow)
+        if (expiry - DateTimeOffset.UtcNow > _refreshWindow)
+            return;
+
+        await _tokenLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            var user = Username ?? throw new InvalidOperationException("Client is not logged in");
-            await _httpClient.RefreshJwtAsync(_wsClient, user, cancellationToken).ConfigureAwait(false);
+            token = _httpClient.LastToken;
+            if (token is null)
+                return;
+
+            expiry = DateTimeOffset.FromUnixTimeSeconds(token.ValidUntil);
+            if (expiry - DateTimeOffset.UtcNow <= _refreshWindow)
+            {
+                var user = Username ?? throw new InvalidOperationException("Client is not logged in");
+                await _httpClient.RefreshJwtAsync(_wsClient, user, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _tokenLock.Release();
         }
     }
 
@@ -88,7 +106,15 @@ public class LoxoneClient : ILoxoneClient
         public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
         {
             await _parent.EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
-            return await _inner.RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await _inner.RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                await _parent.EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
+                return await _inner.RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) =>
