@@ -11,6 +11,7 @@ public class TokenRefresher
 {
     private readonly ILoxoneClient _client;
     private readonly string _user;
+    private readonly TimeSpan _refreshWindow;
 
     /// <summary>
     /// Delegate that ensures a valid JWT token is available.
@@ -18,10 +19,11 @@ public class TokenRefresher
     public Func<CancellationToken, Task<TokenInfo>> RefreshDelegate { get; }
 
     /// <summary>Creates the refresher.</summary>
-    public TokenRefresher(ILoxoneClient client, string user)
+    public TokenRefresher(ILoxoneClient client, string user, TimeSpan? refreshWindow = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _user = user ?? throw new ArgumentNullException(nameof(user));
+        _refreshWindow = refreshWindow ?? TimeSpan.FromSeconds(30);
         RefreshDelegate = EnsureValidTokenAsync;
     }
 
@@ -31,8 +33,9 @@ public class TokenRefresher
     public async Task<TokenInfo> EnsureValidTokenAsync(CancellationToken cancellationToken = default)
     {
         var token = _client.Http.LastToken ?? throw new InvalidOperationException("No JWT token available");
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        if (token.ValidUntil <= now)
+        var now = DateTimeOffset.UtcNow;
+        var expiry = DateTimeOffset.FromUnixTimeSeconds(token.ValidUntil);
+        if (expiry - now <= _refreshWindow)
             token = await _client.Http.RefreshJwtAsync(_client.WebSocket, _user, cancellationToken).ConfigureAwait(false);
         return token;
     }

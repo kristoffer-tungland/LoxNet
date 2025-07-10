@@ -81,6 +81,20 @@ public class TokenRefresherTests
     }
 
     [Fact]
+    public async Task EnsureValidTokenAsync_RefreshesNearExpiry()
+    {
+        var client = new MockClient();
+        client.Http.LastToken = new TokenInfo("old", DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds(), 0, false, "k");
+        client.Http.RefreshResult = new TokenInfo("new", DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds(), 0, false, "k");
+        var refresher = new TokenRefresher(client, "user", TimeSpan.FromSeconds(30));
+
+        var tok = await refresher.EnsureValidTokenAsync();
+
+        Assert.Equal("new", tok.Token);
+        Assert.Equal(1, client.Http.RefreshCalls);
+    }
+
+    [Fact]
     public async Task Delegate_InvokesEnsureValidTokenAsync()
     {
         var client = new MockClient();
