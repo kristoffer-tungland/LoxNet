@@ -13,6 +13,8 @@ public static class LoxoneControlFactory
         ControlType.Switch => new SwitchControl(),
         ControlType.LightController => new LightController(),
         ControlType.LightControllerV2 => new LightControllerV2(),
+        ControlType.Dimmer => new LoxoneControl(),
+        ControlType.ColorPickerV2 => new LoxoneControl(),
         _ => new LoxoneControl()
     };
 

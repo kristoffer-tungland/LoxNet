@@ -108,6 +108,8 @@ public class LoxoneStructureState : ILoxoneStructureState
             "Switch" => ControlType.Switch,
             "LightController" => ControlType.LightController,
             "LightControllerV2" => ControlType.LightControllerV2,
+            "Dimmer" => ControlType.Dimmer,
+            "ColorPickerV2" => ControlType.ColorPickerV2,
             _ => ControlType.Unknown
         };
 

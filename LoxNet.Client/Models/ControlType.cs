@@ -12,5 +12,9 @@ public enum ControlType
     /// <summary>A lighting controller.</summary>
     LightController,
     /// <summary>Second version of the lighting controller.</summary>
-    LightControllerV2
+    LightControllerV2,
+    /// <summary>A dimmer circuit.</summary>
+    Dimmer,
+    /// <summary>A color picker circuit used by LightControllerV2.</summary>
+    ColorPickerV2
 }
