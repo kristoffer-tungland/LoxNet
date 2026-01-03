@@ -23,6 +23,67 @@ A lightweight service that bridges Zigbee2MQTT devices with Loxone LightControll
 * Commands are published to `<device>/set` automatically.
 * The bridge publishes minimal MQTT payloads so devices only receive fields that change.
 
+## Configuration examples
+
+### Dimmer mapping
+
+```yaml
+loxone:
+  host: "192.168.1.10"
+  user: "bridge"
+  password: "secret"
+
+mqtt:
+  host: "mqtt"
+
+mappings:
+  - name: "Kitchen spots"
+    kind: "dimmer"
+    mqttTopic: "zigbee2mqtt/kitchen_spots"
+    loxoneUuidAction: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    options:
+      preferMqttState: true
+```
+
+### ColorPickerV2 mapping
+
+```yaml
+loxone:
+  host: "192.168.1.10"
+  user: "bridge"
+  password: "secret"
+
+mqtt:
+  host: "mqtt"
+
+mappings:
+  - name: "Kitchen strip"
+    kind: "colorpickerv2"
+    mqttTopic: "zigbee2mqtt/kitchen_strip"
+    loxoneUuidAction: "ffffffff-1111-2222-3333-444444444444"
+    options:
+      allowColor: true
+      preferMqttState: true
+```
+
+### MQTT payloads sent by the bridge
+
+```json
+{ "state": "ON" }
+```
+
+```json
+{ "brightness": 127 }
+```
+
+```json
+{ "color_temp": 250 }
+```
+
+```json
+{ "color": { "h": 120, "s": 100, "v": 75 } }
+```
+
 ## Troubleshooting
 
 * `GET /health` returns overall status plus per-mapping errors such as missing subcontrols or type mismatches.
