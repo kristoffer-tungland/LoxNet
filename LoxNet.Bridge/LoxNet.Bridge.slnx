@@ -1,0 +1,22 @@
+
+<Solution>
+  <SolutionProperties VisualStudioVersion="17.0" MinimumVisualStudioVersion="17.0" />
+
+  <Projects>
+    <!-- Project entries use a relative path from the .slnx file -->
+    <Project Path="src/Bridge/Bridge.csproj" Type="CSharp" />
+  </Projects>
+
+  <SolutionConfigurations>
+    <Configuration Name="Debug|AnyCPU" />
+    <Configuration Name="Release|AnyCPU" />
+  </SolutionConfigurations>
+  <Folder Name="/src/">
+    <Project Path="src/Bridge/Bridge.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Bridge.Tests/">
+    <Project Path="tests/Bridge.Tests/LoxNet.Bridge.Tests.csproj" />
+  </Folder>
+  <Project Path="../LoxNet.Client/LoxNet.Client.csproj" />
+</Solution>

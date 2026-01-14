@@ -1,8 +1,8 @@
+using System.Buffers;
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Sync;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
-using MQTTnet.Client;
 
 namespace LoxNet.Bridge.Mqtt;
 
@@ -16,7 +16,7 @@ public class MqttService : IMqttClientHost
     {
         _logger = logger;
         _parser = parser;
-        _client = client ?? new MqttFactory().CreateMqttClient();
+        _client = client ?? new MqttClientFactory().CreateMqttClient();
     }
 
     public IMqttClient Client => _client;
@@ -34,7 +34,7 @@ public class MqttService : IMqttClientHost
             var topic = args.ApplicationMessage.Topic;
             try
             {
-                var payload = args.ApplicationMessage.PayloadSegment.ToArray();
+                var payload = args.ApplicationMessage.Payload.ToArray();
                 var json = System.Text.Encoding.UTF8.GetString(payload);
                 var state = _parser.Parse(json);
                 return handler(topic, state, cancellationToken);
@@ -68,6 +68,7 @@ public class MqttService : IMqttClientHost
         var topics = config.Mappings.Select(m => m.MqttTopic).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var options = topics.Select(t => new MqttTopicFilterBuilder().WithTopic(t).Build()).ToList();
         _logger.LogInformation("Subscribing to {Count} MQTT topics", options.Count);
-        return _client.SubscribeAsync(options, cancellationToken);
+        var subscribeOptions = new MqttClientSubscribeOptions { TopicFilters = options };
+        return _client.SubscribeAsync(subscribeOptions, cancellationToken);
     }
 }
