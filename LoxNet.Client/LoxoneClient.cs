@@ -110,7 +110,11 @@ public class LoxoneClient : ILoxoneClient
             {
                 return await _inner.RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
             }
+#if NET48
+            catch (HttpRequestException ex) when (ex.Message.Contains("401"))
+#else
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+#endif
             {
                 await _parent.EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
                 return await _inner.RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
