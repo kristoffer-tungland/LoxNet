@@ -9,16 +9,7 @@ public static class ConfigLoader
 {
     public static async Task<BridgeConfig> LoadAsync(IConfiguration configuration, string? configPathFromEnv)
     {
-        var path = configPathFromEnv;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            path = configuration["CONFIG"];
-        }
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            path = "/data/config.yaml";
-        }
+        var path = ResolvePath(configuration, configPathFromEnv);
 
         if (!File.Exists(path))
         {
@@ -37,5 +28,21 @@ public static class ConfigLoader
         var config = deserializer.Deserialize<BridgeConfig>(yaml) ?? new BridgeConfig();
         config.Validate();
         return config;
+    }
+
+    public static string ResolvePath(IConfiguration configuration, string? configPathFromEnv)
+    {
+        var path = configPathFromEnv;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = configuration["CONFIG"];
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = "/data/config.yaml";
+        }
+
+        return path;
     }
 }

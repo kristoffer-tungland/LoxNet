@@ -10,7 +10,7 @@ public class BridgeConfig
 
     public SyncSection Sync { get; init; } = new();
 
-    public IReadOnlyList<MappingSection> Mappings { get; init; } = Array.Empty<MappingSection>();
+    public List<MappingSection> Mappings { get; init; } = new();
 
     public void Validate()
     {

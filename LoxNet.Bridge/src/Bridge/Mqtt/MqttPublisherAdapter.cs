@@ -1,6 +1,6 @@
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Sync;
-using MQTTnet.Client;
+using MQTTnet;
 
 namespace LoxNet.Bridge.Mqtt;
 

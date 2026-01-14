@@ -8,7 +8,7 @@ A lightweight service that bridges Zigbee2MQTT devices with Loxone LightControll
    ```sh
    docker compose -f docker-compose.example.yml up --build
    ```
-2. Place your configuration file at `./data/config.yaml` or set `CONFIG` to another path.
+2. Copy `./data/config.example.yaml` to `./data/config.yaml` and update the credentials, or set `CONFIG` to another path.
 3. Browse `http://localhost:8080/health` to confirm connectivity and mapping status.
 
 ## Discovering Loxone subcontrols

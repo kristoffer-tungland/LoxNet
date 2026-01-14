@@ -76,7 +76,7 @@ public class LoxoneService : ILoxoneCommandExecutor
 
             control.StateChanged += async (_, args) =>
             {
-                await HandleStateAsync(mapping, args.Name, args.Value, cancellationToken).ConfigureAwait(false);
+                await HandleStateAsync(mapping, args.State, args.Value, cancellationToken).ConfigureAwait(false);
             };
         }
     }

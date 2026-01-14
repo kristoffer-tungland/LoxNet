@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
+LoxNet.Bridge/data/config.yaml
+LoxNet.Bridge/data/config.yml
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

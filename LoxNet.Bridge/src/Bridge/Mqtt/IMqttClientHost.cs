@@ -1,4 +1,4 @@
-using MQTTnet.Client;
+using MQTTnet;
 
 namespace LoxNet.Bridge.Mqtt;
 

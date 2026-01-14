@@ -1,6 +1,5 @@
 using System.Text.Json;
 using MQTTnet;
-using MQTTnet.Client;
 using MQTTnet.Protocol;
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Sync;

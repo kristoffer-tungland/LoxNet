@@ -9,8 +9,10 @@ using LoxNet.Bridge.Sync;
 var builder = Host.CreateApplicationBuilder(args);
 LoggingSetup.Configure(builder.Logging);
 
-var bridgeConfig = await ConfigLoader.LoadAsync(builder.Configuration, builder.Configuration["CONFIG"]);
+var configPath = ConfigLoader.ResolvePath(builder.Configuration, builder.Configuration["CONFIG"]);
+var bridgeConfig = await ConfigLoader.LoadAsync(builder.Configuration, configPath);
 builder.Services.AddSingleton(bridgeConfig);
+builder.Services.AddSingleton(new ConfigFileSettings(configPath));
 builder.Services.AddSingleton<StateCache>();
 builder.Services.AddSingleton<StateComparer>();
 builder.Services.AddSingleton<Converters>();

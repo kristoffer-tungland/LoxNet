@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoxNet.Client", "LoxNet.Client\LoxNet.Client.csproj", "{45EE941B-6DFC-451B-172F-03031C703FD3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoxNet.Tests", "LoxNet.Tests\LoxNet.Tests.csproj", "{59B8FE45-B199-EF05-BEC6-6D09433A2E71}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{45EE941B-6DFC-451B-172F-03031C703FD3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45EE941B-6DFC-451B-172F-03031C703FD3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45EE941B-6DFC-451B-172F-03031C703FD3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45EE941B-6DFC-451B-172F-03031C703FD3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{59B8FE45-B199-EF05-BEC6-6D09433A2E71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59B8FE45-B199-EF05-BEC6-6D09433A2E71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59B8FE45-B199-EF05-BEC6-6D09433A2E71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59B8FE45-B199-EF05-BEC6-6D09433A2E71}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B00A8C0C-777F-4CB5-A6B3-711CB85CBC9D}
+	EndGlobalSection
+EndGlobal

@@ -48,7 +48,11 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     {
         using var resp = await _http.GetAsync($"{BaseUrl}/{path}", cancellationToken).ConfigureAwait(false);
         resp.EnsureSuccessStatusCode();
+#if NET48
+        var stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#else
         var stream = await resp.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#endif
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
