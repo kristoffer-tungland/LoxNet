@@ -1,0 +1,324 @@
+@page "/"
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<section class="panel">
+    <h1>Bridge Configuration</h1>
+    <p class="panel__hint">
+        Update the miniserver connection, MQTT broker, and mapping details. Saving writes the YAML configuration
+        file and requires a bridge restart before changes take effect.
+    </p>
+</section>
+
+@if (_isLoading)
+{
+    <div class="panel">
+        <p>Loading configuration…</p>
+    </div>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <section class="panel">
+            <h2>Miniserver Connection</h2>
+            <div class="field-grid">
+                <div class="field">
+                    <label>Host</label>
+                    <InputText class="text-input" @bind-Value="_model.Loxone.Host" />
+                </div>
+                <div class="field">
+                    <label>Port</label>
+                    <InputNumber class="text-input" @bind-Value="_model.Loxone.Port" />
+                </div>
+                <div class="field">
+                    <label>User</label>
+                    <InputText class="text-input" @bind-Value="_model.Loxone.User" />
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <InputText class="text-input" type="password" @bind-Value="_model.Loxone.Password" />
+                </div>
+                <div class="field">
+                    <label>LoxApp3 Path</label>
+                    <InputText class="text-input" @bind-Value="_model.Loxone.Loxapp3Path" />
+                </div>
+                <div class="field">
+                    <label>Use HTTPS</label>
+                    <InputCheckbox class="checkbox" @bind-Value="_model.Loxone.UseHttps" />
+                </div>
+                <div class="field">
+                    <label>Refresh LoxApp3 on Start</label>
+                    <InputCheckbox class="checkbox" @bind-Value="_model.Loxone.RefreshLoxapp3OnStart" />
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>MQTT Broker</h2>
+            <div class="field-grid">
+                <div class="field">
+                    <label>Host</label>
+                    <InputText class="text-input" @bind-Value="_model.Mqtt.Host" />
+                </div>
+                <div class="field">
+                    <label>Port</label>
+                    <InputNumber class="text-input" @bind-Value="_model.Mqtt.Port" />
+                </div>
+                <div class="field">
+                    <label>Username</label>
+                    <InputText class="text-input" @bind-Value="_model.Mqtt.Username" />
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <InputText class="text-input" type="password" @bind-Value="_model.Mqtt.Password" />
+                </div>
+                <div class="field">
+                    <label>Client ID</label>
+                    <InputText class="text-input" @bind-Value="_model.Mqtt.ClientId" />
+                </div>
+                <div class="field">
+                    <label>Base Topic</label>
+                    <InputText class="text-input" @bind-Value="_model.Mqtt.BaseTopic" />
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel__header">
+                <h2>Mappings</h2>
+                <button type="button" class="button button--secondary" @onclick="AddMapping">Add Mapping</button>
+            </div>
+
+            @if (_model.Mappings.Count == 0)
+            {
+                <p class="panel__hint">No mappings configured yet. Add one to sync a Loxone control with an MQTT topic.</p>
+            }
+            else
+            {
+                @foreach (var mapping in _model.Mappings)
+                {
+                    <div class="mapping-card">
+                        <div class="mapping-card__header">
+                            <h3>@(string.IsNullOrWhiteSpace(mapping.Name) ? "New Mapping" : mapping.Name)</h3>
+                            <button type="button" class="button button--danger" @onclick="() => RemoveMapping(mapping)">Remove</button>
+                        </div>
+                        <div class="field-grid">
+                            <div class="field">
+                                <label>Name</label>
+                                <InputText class="text-input" @bind-Value="mapping.Name" />
+                            </div>
+                            <div class="field">
+                                <label>Kind</label>
+                                <InputSelect class="text-input" @bind-Value="mapping.Kind">
+                                    @foreach (var kind in _supportedKinds)
+                                    {
+                                        <option value="@kind">@kind</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="field">
+                                <label>MQTT Topic</label>
+                                <InputText class="text-input" @bind-Value="mapping.MqttTopic" />
+                            </div>
+                            <div class="field">
+                                <label>Loxone UUID Action</label>
+                                <InputText class="text-input" @bind-Value="mapping.LoxoneUuidAction" />
+                            </div>
+                            <div class="field">
+                                <label>Prefer MQTT State</label>
+                                <InputCheckbox class="checkbox" @bind-Value="mapping.Options.PreferMqttState" />
+                            </div>
+                            <div class="field">
+                                <label>Allow Color</label>
+                                <InputCheckbox class="checkbox" @bind-Value="mapping.Options.AllowColor" />
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </section>
+
+        <section class="panel panel--footer">
+            <button type="submit" class="button button--primary" disabled="@_isSaving">Save Configuration</button>
+            @if (!string.IsNullOrWhiteSpace(_statusMessage))
+            {
+                <span class="status status--success">@_statusMessage</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <span class="status status--error">@_errorMessage</span>
+            }
+        </section>
+    </EditForm>
+}
+
+@code {
+    private readonly string[] _supportedKinds = ["Dimmer", "ColorPickerV2"];
+    private ConfigEditorModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _statusMessage;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync().ConfigureAwait(false);
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var dto = await client.GetFromJsonAsync<BridgeConfigDto>("config").ConfigureAwait(false);
+            if (dto is not null)
+            {
+                _model = MapToEditor(dto);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load configuration: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var payload = MapToDto(_model);
+            var response = await client.PostAsJsonAsync("config", payload).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ConfigSaveResult>().ConfigureAwait(false);
+                _statusMessage = result?.Message ?? "Configuration saved.";
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>().ConfigureAwait(false);
+                _errorMessage = error?.TryGetValue("error", out var message) == true
+                    ? message
+                    : $"Failed to save configuration ({(int)response.StatusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save configuration: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void AddMapping()
+    {
+        _model.Mappings.Add(new MappingEditorModel());
+    }
+
+    private void RemoveMapping(MappingEditorModel mapping)
+    {
+        _model.Mappings.Remove(mapping);
+    }
+
+    private HttpClient CreateClient()
+    {
+        var client = HttpClientFactory.CreateClient();
+        client.BaseAddress = new Uri(Navigation.BaseUri);
+        return client;
+    }
+
+    private static ConfigEditorModel MapToEditor(BridgeConfigDto dto)
+    {
+        return new ConfigEditorModel
+        {
+            Loxone = new LoxoneEditorModel
+            {
+                Host = dto.Loxone.Host,
+                Port = dto.Loxone.Port,
+                UseHttps = dto.Loxone.UseHttps,
+                User = dto.Loxone.User,
+                Password = dto.Loxone.Password,
+                Loxapp3Path = dto.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = dto.Loxone.RefreshLoxapp3OnStart
+            },
+            Mqtt = new MqttEditorModel
+            {
+                Host = dto.Mqtt.Host,
+                Port = dto.Mqtt.Port,
+                Username = dto.Mqtt.Username,
+                Password = dto.Mqtt.Password,
+                ClientId = dto.Mqtt.ClientId,
+                BaseTopic = dto.Mqtt.BaseTopic
+            },
+            Mappings = dto.Mappings
+                .Select(m => new MappingEditorModel
+                {
+                    Name = m.Name,
+                    Kind = m.Kind,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction,
+                    Options = new MappingOptionsEditorModel
+                    {
+                        PreferMqttState = m.Options.PreferMqttState,
+                        AllowColor = m.Options.AllowColor
+                    }
+                })
+                .ToList()
+        };
+    }
+
+    private static BridgeConfigDto MapToDto(ConfigEditorModel model)
+    {
+        return new BridgeConfigDto
+        {
+            Loxone = new LoxoneSectionDto
+            {
+                Host = model.Loxone.Host,
+                Port = model.Loxone.Port,
+                UseHttps = model.Loxone.UseHttps,
+                User = model.Loxone.User,
+                Password = model.Loxone.Password,
+                Loxapp3Path = model.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = model.Loxone.RefreshLoxapp3OnStart
+            },
+            Mqtt = new MqttSectionDto
+            {
+                Host = model.Mqtt.Host,
+                Port = model.Mqtt.Port,
+                Username = model.Mqtt.Username,
+                Password = model.Mqtt.Password,
+                ClientId = model.Mqtt.ClientId,
+                BaseTopic = model.Mqtt.BaseTopic
+            },
+            Mappings = model.Mappings
+                .Select(m => new MappingSectionDto
+                {
+                    Name = m.Name,
+                    Kind = m.Kind,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction,
+                    Options = new MappingOptionsDto
+                    {
+                        PreferMqttState = m.Options.PreferMqttState,
+                        AllowColor = m.Options.AllowColor
+                    }
+                })
+                .ToArray()
+        };
+    }
+}
