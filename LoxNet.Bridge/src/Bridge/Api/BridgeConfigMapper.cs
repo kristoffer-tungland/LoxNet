@@ -86,7 +86,7 @@ public static class BridgeConfigMapper
                         AllowColor = m.Options.AllowColor
                     }
                 })
-                .ToArray()
+                .ToList()
         };
     }
 }

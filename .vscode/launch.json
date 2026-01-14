@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+      
+    {
+      "name": "LoxNet.Bridge (net9.0)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/LoxNet.Bridge/src/Bridge/bin/Debug/net9.0/Bridge.dll",
+      "cwd": "${workspaceFolder}/LoxNet.Bridge/src/Bridge",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "CONFIG": "${workspaceFolder}/LoxNet.Bridge/data/config.yaml"
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+loxone:
+  host: "LOXONE_HOST_OR_IP"
+  user: "bridge-user"
+  password: "change-me"
+
+mqtt:
+  host: "localhost"
+
+mappings:
+  - name: "Example dimmer"
+    kind: "dimmer"
+    mqttTopic: "zigbee2mqtt/example_dimmer"
+    loxoneUuidAction: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    options:
+      preferMqttState: true

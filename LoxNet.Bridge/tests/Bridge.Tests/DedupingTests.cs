@@ -20,7 +20,7 @@ public class DedupingTests
     [Fact]
     public async Task MqttEchoIsSuppressed()
     {
-        var config = new BridgeConfig { Mappings = new[] { _mapping } };
+        var config = new BridgeConfig { Mappings = new List<MappingSection> { _mapping } };
         var cache = new StateCache();
         var comparer = new StateComparer(config);
         var fakeLoxone = new FakeLoxoneExecutor();
@@ -38,7 +38,7 @@ public class DedupingTests
     [Fact]
     public async Task LoxoneEchoIsSuppressed()
     {
-        var config = new BridgeConfig { Mappings = new[] { _mapping } };
+        var config = new BridgeConfig { Mappings = new List<MappingSection> { _mapping } };
         var cache = new StateCache();
         var comparer = new StateComparer(config);
         var fakeLoxone = new FakeLoxoneExecutor();
