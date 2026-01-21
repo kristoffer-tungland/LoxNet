@@ -67,6 +67,12 @@ public class MqttService : IMqttClientHost
     {
         var topics = config.Mappings.Select(m => m.MqttTopic).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var options = topics.Select(t => new MqttTopicFilterBuilder().WithTopic(t).Build()).ToList();
+        if (options.Count == 0)
+        {
+            _logger.LogInformation("No MQTT topics configured; skipping subscribe.");
+            return Task.CompletedTask;
+        }
+
         _logger.LogInformation("Subscribing to {Count} MQTT topics", options.Count);
         var subscribeOptions = new MqttClientSubscribeOptions { TopicFilters = options };
         return _client.SubscribeAsync(subscribeOptions, cancellationToken);

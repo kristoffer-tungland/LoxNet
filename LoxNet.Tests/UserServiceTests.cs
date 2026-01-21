@@ -14,7 +14,7 @@ public class UserServiceTests
     {
         public List<string> Paths { get; } = new();
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
-        public TokenInfo? LastToken => null;
+        public TokenInfo? LastToken { get; set; }
 
         private const string ListJson = "{\"LL\":{\"Code\":200,\"value\":[{\"name\":\"admin\",\"uuid\":\"1\",\"isAdmin\":true,\"userState\":0}]}}";
         private const string UserJson = "{\"LL\":{\"Code\":200,\"value\":{\"name\":\"admin\",\"uuid\":\"1\",\"userid\":\"123\",\"isAdmin\":true,\"userState\":0}}}";
@@ -60,6 +60,7 @@ public class UserServiceTests
             return Task.FromResult(JsonDocument.Parse(json));
         }
 
+        public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("");
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public Task<TokenInfo> RefreshJwtAsync(ILoxoneWebSocketClient wsClient, string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();

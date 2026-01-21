@@ -66,10 +66,12 @@ public class StructureCacheTests
         public event EventHandler<string>? MessageReceived;
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(0, default, null));
-        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(0, default, null));
+        public Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => Task.FromResult(new TokenInfo("jwt", 0, 0, false, "k"));
+        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
+        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
         public Task KeepAliveAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(0, default, null));
+        public Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
         public Task ListenAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -80,8 +82,9 @@ public class StructureCacheTests
     {
         private readonly JsonDocument _doc = JsonDocument.Parse(SampleJson);
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
-        public TokenInfo? LastToken => null;
+        public TokenInfo? LastToken { get; set; }
         public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(_doc);
+        public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("");
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<TokenInfo> RefreshJwtAsync(ILoxoneWebSocketClient wsClient, string user, CancellationToken cancellationToken = default) => throw new NotImplementedException();

@@ -13,7 +13,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     private readonly HttpClient _http;
     private readonly bool _disposeHttpClient;
     public LoxoneConnectionOptions Options { get; }
-    public TokenInfo? LastToken { get; private set; }
+    public TokenInfo? LastToken { get; set; }
 
     public LoxoneHttpClient(HttpClient httpClient, LoxoneConnectionOptions options)
     {
@@ -47,13 +47,41 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
     {
         using var resp = await _http.GetAsync($"{BaseUrl}/{path}", cancellationToken).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            string content = string.Empty;
+            try
+            {
+#if NET48
+                content = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+#else
+                content = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+#endif
+            }
+            catch { }
+            System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] HTTP {resp.StatusCode} for path '{path}': {content}");
+            resp.EnsureSuccessStatusCode();
+        }
 #if NET48
         var stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);
 #else
         var stream = await resp.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
 #endif
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fetches raw text response (e.g., certificate data) without JSON parsing.
+    /// </summary>
+    public async Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default)
+    {
+        using var resp = await _http.GetAsync($"{BaseUrl}/{path}", cancellationToken).ConfigureAwait(false);
+        resp.EnsureSuccessStatusCode();
+#if NET48
+        return await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+#else
+        return await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+#endif
     }
 
     public async Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default)
@@ -78,6 +106,8 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         return sb.ToString();
     }
 
+    internal static string HashToUpperInternal(ReadOnlySpan<byte> data, HashAlgorithm algo) => HashToUpper(data, algo);
+
     internal static string HmacHex(ReadOnlySpan<byte> key, ReadOnlySpan<byte> data, HashAlgorithmName name)
     {
         using HMAC hmac = name.Name == "SHA256"
@@ -100,7 +130,10 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         var userHash = HmacHex(keyBytes, Encoding.UTF8.GetBytes($"{user}:{pwHash}"), algoName);
         var uid = Guid.NewGuid().ToString("N");
         var encInfo = Uri.EscapeDataString(info);
-        using var doc = await RequestJsonAsync($"jdev/sys/getjwt/{userHash}/{user}/{permission}/{uid}/{encInfo}", cancellationToken).ConfigureAwait(false);
+        var path = $"jdev/sys/getjwt/{userHash}/{Uri.EscapeDataString(user)}/{permission}/{uid}/{encInfo}";
+        var url = $"{BaseUrl}/{path}";
+        System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] Requesting JWT URL: {url}");
+        using var doc = await RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
         var val = msg.Value;
@@ -112,7 +145,37 @@ public class LoxoneHttpClient : ILoxoneHttpClient
             val.GetProperty("key").GetString()!
         );
         LastToken = token;
+
+        try
+        {
+            var claims = DecodeJwtPayload(token.Token);
+            System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] Decoded JWT payload: {claims}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] Failed to decode JWT payload: {ex}");
+        }
         return token;
+    }
+
+    private static string DecodeJwtPayload(string jwt)
+    {
+        if (string.IsNullOrEmpty(jwt))
+            return string.Empty;
+        var parts = jwt.Split('.');
+        if (parts.Length < 2)
+            return string.Empty;
+        var payload = parts[1];
+        // base64url -> base64
+        payload = payload.Replace('-', '+').Replace('_', '/');
+        switch (payload.Length % 4)
+        {
+            case 2: payload += "=="; break;
+            case 3: payload += "="; break;
+            case 1: payload += "==="; break;
+        }
+        var bytes = Convert.FromBase64String(payload);
+        return Encoding.UTF8.GetString(bytes);
     }
 
     /// <summary>

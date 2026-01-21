@@ -12,6 +12,8 @@ public interface ILoxoneWebSocketClient : IAsyncDisposable
     Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default);
     Task KeepAliveAsync(CancellationToken cancellationToken = default);
     Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default);
+    Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default);
+    Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Raised when a raw message is received from the websocket.

@@ -41,12 +41,38 @@ public class LoxoneClient : ILoxoneClient
     }
 
     /// <summary>
-    /// Retrieves a JWT via HTTP and authenticates the websocket connection.
+    /// Connects to Miniserver, initializes encryption, acquires JWT via encrypted WebSocket, and authenticates.
+    /// This follows the recommended Loxone protocol flow.
     /// </summary>
     public async Task LoginAsync(string user, string password, int permission = 4, string info = "LoxNet", CancellationToken cancellationToken = default)
     {
-        _ = await Http.GetJwtAsync(user, password, permission, info, cancellationToken).ConfigureAwait(false);
-        await WebSocket.ConnectAndAuthenticateAsync(user, cancellationToken).ConfigureAwait(false);
+        System.Diagnostics.Debug.WriteLine($"[LoxoneClient] Starting encrypted login for user='{user}'");
+        
+        // Connect WebSocket
+        await WebSocket.ConnectAsync(cancellationToken).ConfigureAwait(false);
+        System.Diagnostics.Debug.WriteLine("[LoxoneClient] WebSocket connected");
+
+        // Initialize encryption via keyexchange
+        var encryptionOk = await WebSocket.InitializeEncryptionAsync(cancellationToken).ConfigureAwait(false);
+        if (!encryptionOk)
+        {
+            await WebSocket.CloseAsync(cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("Failed to initialize WebSocket encryption. Check debug output for keyexchange error details. Ensure the Miniserver is accessible and supports encrypted WebSocket communication.");
+        }
+        System.Diagnostics.Debug.WriteLine("[LoxoneClient] Encryption initialized");
+
+        // Acquire JWT via encrypted WebSocket
+        var token = await WebSocket.AcquireJwtTokenAsync(user, password, permission, info, cancellationToken).ConfigureAwait(false);
+        System.Diagnostics.Debug.WriteLine($"[LoxoneClient] JWT obtained: rights={token.TokenRights}");
+
+        // Store token in HTTP client for later use
+        Http.LastToken = token;
+
+        // Authenticate WebSocket with the token
+        var authMsg = await WebSocket.AuthenticateWithTokenAsync(token.Token, user, cancellationToken).ConfigureAwait(false);
+        authMsg.EnsureSuccess();
+        System.Diagnostics.Debug.WriteLine("[LoxoneClient] WebSocket authenticated");
+
         Username = user;
     }
 
@@ -101,7 +127,11 @@ public class LoxoneClient : ILoxoneClient
         }
 
         public LoxoneConnectionOptions Options => _inner.Options;
-        public TokenInfo? LastToken => _inner.LastToken;
+        public TokenInfo? LastToken 
+        { 
+            get => _inner.LastToken;
+            set => _inner.LastToken = value;
+        }
 
         public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
         {
@@ -120,6 +150,9 @@ public class LoxoneClient : ILoxoneClient
                 return await _inner.RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
             }
         }
+
+        public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) =>
+            _inner.RequestTextAsync(path, cancellationToken);
 
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) =>
             _inner.GetKey2Async(user, cancellationToken);
@@ -161,6 +194,12 @@ public class LoxoneClient : ILoxoneClient
 
         public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default) =>
             _inner.ConnectAndAuthenticateAsync(user, cancellationToken);
+
+        public Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default) =>
+            _inner.InitializeEncryptionAsync(cancellationToken);
+
+        public Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) =>
+            _inner.AcquireJwtTokenAsync(user, password, permission, info, cancellationToken);
 
         public async Task KeepAliveAsync(CancellationToken cancellationToken = default)
         {

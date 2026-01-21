@@ -14,7 +14,7 @@ public class OperatingModeServiceTests
     {
         public List<string> Paths { get; } = new();
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
-        public TokenInfo? LastToken => null;
+        public TokenInfo? LastToken { get; set; }
 
         private const string EntriesJson = "{\"LL\": { \"Code\": 200, \"value\": [ { \"uuid\": \"1\", \"name\": \"Entry\", \"operatingMode\": \"Party\", \"calMode\": 0, \"calModeAttr\": \"1/1\" } ] } }";
         private const string OkJson = "{\"LL\": { \"Code\": 200 } }";
@@ -36,6 +36,8 @@ public class OperatingModeServiceTests
             };
             return Task.FromResult(JsonDocument.Parse(json));
         }
+
+        public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("");
 
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();
         public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new System.NotImplementedException();

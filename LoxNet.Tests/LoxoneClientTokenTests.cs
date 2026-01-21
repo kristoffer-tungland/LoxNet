@@ -18,6 +18,7 @@ public class LoxoneClientTokenTests
 
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
         public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(JsonDocument.Parse("{}"));
+        public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("");
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => Task.FromResult(new KeyInfo("k", "s", "sha"));
         public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default)
         {
@@ -39,10 +40,12 @@ public class LoxoneClientTokenTests
         public event EventHandler<string>? MessageReceived;
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(0, default, null));
-        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(0, default, null));
+        public Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => Task.FromResult(new TokenInfo("jwt", 0, 0, false, "k"));
+        public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
+        public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
         public Task KeepAliveAsync(CancellationToken cancellationToken = default) { CommandCalls++; return Task.CompletedTask; }
-        public Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default) { CommandCalls++; return Task.FromResult(new LoxoneMessage(0, default, null)); }
+        public Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default) { CommandCalls++; return Task.FromResult(new LoxoneMessage(200, default, null)); }
         public Task ListenAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

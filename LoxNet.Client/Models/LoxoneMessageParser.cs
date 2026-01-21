@@ -11,10 +11,30 @@ public static class LoxoneMessageParser
     /// <param name="doc">The document to parse.</param>
     public static LoxoneMessage Parse(JsonDocument doc)
     {
-        var ll = doc.RootElement.GetProperty("LL");
+        if (doc is null)
+        {
+            throw new ArgumentNullException(nameof(doc));
+        }
+
+        if (!doc.RootElement.TryGetProperty("LL", out var ll))
+        {
+            throw new JsonException($"Loxone response missing 'LL' property. Body: {doc.RootElement.GetRawText()}");
+        }
+
+        if (!ll.TryGetProperty("Code", out var codeElement) && !ll.TryGetProperty("code", out codeElement))
+        {
+            throw new JsonException($"Loxone response missing 'LL.Code' property. Body: {doc.RootElement.GetRawText()}");
+        }
+
         var value = ll.TryGetProperty("value", out var v) ? v : default;
         string? message = ll.TryGetProperty("message", out var m) ? m.GetString() : null;
-        return new LoxoneMessage(ll.GetProperty("Code").GetInt32(), value, message);
+        var code = codeElement.ValueKind switch
+        {
+            JsonValueKind.Number => codeElement.GetInt32(),
+            JsonValueKind.String when int.TryParse(codeElement.GetString(), out var parsed) => parsed,
+            _ => throw new JsonException($"Loxone response 'LL.Code' is not numeric. Body: {doc.RootElement.GetRawText()}")
+        };
+
+        return new LoxoneMessage(code, value, message);
     }
 }
-
