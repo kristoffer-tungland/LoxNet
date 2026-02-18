@@ -193,7 +193,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         var digest = LoxoneHttpClient.HmacHex(key, Encoding.UTF8.GetBytes(token), System.Security.Cryptography.HashAlgorithmName.SHA1);
         
         _logger.LogDebug("[AuthenticateWithToken] Sending auth command for user={User}", user);
-        var authMsg = await SendCommandAsync($"authwithtoken/{digest}/{user}", cancellationToken).ConfigureAwait(false);
+        var authMsg = await SendCommandAsync($"jdev/sys/authwithtoken/{digest}/{Uri.EscapeDataString(user)}", cancellationToken).ConfigureAwait(false);
         
         _logger.LogDebug("[AuthenticateWithToken] Auth response code={Code}, value={Preview}", authMsg.Code, authMsg.Value.GetRawText().Substring(0, Math.Min(100, authMsg.Value.GetRawText().Length)));
         
