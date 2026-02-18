@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet;
 
@@ -14,6 +15,7 @@ namespace LoxNet;
 /// </summary>
 public class LoxoneWebSocketEncryption
 {
+    private readonly ILogger<LoxoneWebSocketEncryption> _logger;
     private readonly ILoxoneHttpClient _http;
     private readonly string? _cachedCertificate;
     private byte[]? _aesKey;
@@ -21,7 +23,13 @@ public class LoxoneWebSocketEncryption
     private string? _salt;
 
     public LoxoneWebSocketEncryption(ILoxoneHttpClient httpClient, string? cachedCertificate = null)
+        : this(LoggingExtensions.CreateChildLogger<LoxoneWebSocketEncryption>(), httpClient, cachedCertificate)
     {
+    }
+
+    public LoxoneWebSocketEncryption(ILogger<LoxoneWebSocketEncryption> logger, ILoxoneHttpClient httpClient, string? cachedCertificate = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _cachedCertificate = cachedCertificate;
     }
@@ -35,36 +43,36 @@ public class LoxoneWebSocketEncryption
         try
         {
             // Step 1: Use cached/provided certificate or fetch if needed
-            System.Diagnostics.Debug.WriteLine("[EncryptionSetup] Starting keyexchange...");
+            _logger.LogDebug("[EncryptionSetup] Starting keyexchange...");
             
             var certificate = overrideCertificate ?? _cachedCertificate;
             if (string.IsNullOrEmpty(certificate))
             {
-                System.Diagnostics.Debug.WriteLine("[EncryptionSetup] No cached certificate, fetching via HTTP...");
+                _logger.LogDebug("[EncryptionSetup] No cached certificate, fetching via HTTP...");
                 certificate = await _http.RequestTextAsync("jdev/sys/getcertificate", cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("[EncryptionSetup] Using cached certificate");
+                _logger.LogDebug("[EncryptionSetup] Using cached certificate");
             }
             
             if (string.IsNullOrEmpty(certificate))
             {
-                System.Diagnostics.Debug.WriteLine("[EncryptionSetup] No certificate returned");
+                _logger.LogWarning("[EncryptionSetup] No certificate returned");
                 return false;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Certificate available, length={certificate.Length}");
+            _logger.LogDebug("[EncryptionSetup] Certificate available, length={Length}", certificate.Length);
 
             // Extract public key from certificate (PEM format)
             var publicKey = ExtractPublicKeyFromCertificate(certificate);
             if (string.IsNullOrEmpty(publicKey))
             {
-                System.Diagnostics.Debug.WriteLine("[EncryptionSetup] Failed to extract public key from certificate");
+                _logger.LogWarning("[EncryptionSetup] Failed to extract public key from certificate");
                 return false;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Public key extracted, length={publicKey.Length}");
+            _logger.LogDebug("[EncryptionSetup] Public key extracted, length={Length}", publicKey.Length);
 
             // Step 2: Generate AES key and IV
             var keyHex = EncryptionUtils.GenerateRandomHex(32); // 32 bytes = 256 bits
@@ -74,40 +82,42 @@ public class LoxoneWebSocketEncryption
             _aesKey = EncryptionUtils.HexToBytes(keyHex);
             _aesIv = EncryptionUtils.HexToBytes(ivHex);
 
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Generated AES key={keyHex.Substring(0, 8)}..., IV={ivHex.Substring(0, 8)}..., salt={_salt}");
+            _logger.LogDebug("[EncryptionSetup] Generated AES key={KeyPreview}..., IV={IvPreview}..., salt={Salt}", keyHex.Substring(0, 8), ivHex.Substring(0, 8), _salt);
 
             // Step 3: RSA-encrypt the session key
             var encryptedSessionKey = EncryptionUtils.RsaEncryptSessionKey(keyHex, ivHex, publicKey);
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] RSA-encrypted session key, length={encryptedSessionKey.Length}");
+            _logger.LogDebug("[EncryptionSetup] RSA-encrypted session key, length={Length}", encryptedSessionKey.Length);
 
             // Step 4: Send keyexchange command and receive response
             // Note: Do NOT URL-encode the base64 session key! Send it raw like Python does.
             // Python: f"{CMD_KEY_EXCHANGE}{self._session_key.decode()}"
             var keyExchangeCmd = $"jdev/sys/keyexchange/{encryptedSessionKey}";
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Sending keyexchange command: {keyExchangeCmd.Substring(0, Math.Min(60, keyExchangeCmd.Length))}...");
+            _logger.LogDebug("[EncryptionSetup] Sending keyexchange command: {Preview}...", keyExchangeCmd.Substring(0, Math.Min(60, keyExchangeCmd.Length)));
             var response = await sendCommandAndReceive(keyExchangeCmd, cancellationToken).ConfigureAwait(false);
 
             if (string.IsNullOrEmpty(response))
             {
-                System.Diagnostics.Debug.WriteLine("[EncryptionSetup] No response from keyexchange command");
+                _logger.LogWarning("[EncryptionSetup] No response from keyexchange command");
                 return false;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Keyexchange response received: {response.Substring(0, Math.Min(100, response.Length))}");
+            _logger.LogDebug("[EncryptionSetup] Keyexchange response received: {Preview}", response.Substring(0, Math.Min(100, response.Length)));
 
             // The response here is just the encrypted key value from the server (not a full JSON)
             // The callback in InitializeEncryptionAsync extracts msg.Value.GetRawText()
             // We just need to verify we got a response - the encryption is now set up
             // The response is the encrypted response value from the Miniserver, which confirms success
 
-            System.Diagnostics.Debug.WriteLine("[EncryptionSetup] Keyexchange completed successfully");
+            _logger.LogDebug("[EncryptionSetup] Keyexchange completed successfully");
             return true;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Exception during keyexchange: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogError(ex, "[EncryptionSetup] Exception during keyexchange: {ExceptionType}: {Message}", ex.GetType().Name, ex.Message);
             if (ex.InnerException != null)
-                System.Diagnostics.Debug.WriteLine($"[EncryptionSetup] Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            {
+                _logger.LogError(ex.InnerException, "[EncryptionSetup] Inner exception: {ExceptionType}: {Message}", ex.InnerException.GetType().Name, ex.InnerException.Message);
+            }
             return false;
         }
     }
@@ -152,38 +162,38 @@ public class LoxoneWebSocketEncryption
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("[CertValidation] Starting certificate validation and key extraction...");
+            _logger.LogDebug("[CertValidation] Starting certificate validation and key extraction...");
             
             // Parse the certificate chain from PEM
             var certChain = ParseCertificateChain(certificatePem);
             if (certChain.Count == 0)
             {
-                System.Diagnostics.Debug.WriteLine("[CertValidation] ERROR: No certificates found in PEM data");
+                _logger.LogWarning("[CertValidation] No certificates found in PEM data");
                 throw new InvalidOperationException("No certificates found in certificate data");
             }
 
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Found {certChain.Count} certificate(s) in chain");
+            _logger.LogDebug("[CertValidation] Found {Count} certificate(s) in chain", certChain.Count);
 
             // The leaf certificate is the last one
             var leafCert = certChain[certChain.Count - 1];
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Leaf certificate subject: {leafCert.Subject}");
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Leaf certificate issuer: {leafCert.Issuer}");
+            _logger.LogDebug("[CertValidation] Leaf certificate subject: {Subject}", leafCert.Subject);
+            _logger.LogDebug("[CertValidation] Leaf certificate issuer: {Issuer}", leafCert.Issuer);
 
             // Validate certificate is not expired
             var now = DateTime.UtcNow;
             if (leafCert.NotBefore > now)
             {
-                System.Diagnostics.Debug.WriteLine($"[CertValidation] ERROR: Certificate not yet valid (NotBefore: {leafCert.NotBefore})");
+                _logger.LogWarning("[CertValidation] Certificate not yet valid (NotBefore: {NotBefore})", leafCert.NotBefore);
                 throw new InvalidOperationException($"Certificate not yet valid. NotBefore: {leafCert.NotBefore}");
             }
 
             if (leafCert.NotAfter < now)
             {
-                System.Diagnostics.Debug.WriteLine($"[CertValidation] ERROR: Certificate expired (NotAfter: {leafCert.NotAfter})");
+                _logger.LogWarning("[CertValidation] Certificate expired (NotAfter: {NotAfter})", leafCert.NotAfter);
                 throw new InvalidOperationException($"Certificate expired. NotAfter: {leafCert.NotAfter}");
             }
 
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Certificate validity: {leafCert.NotBefore} to {leafCert.NotAfter}");
+            _logger.LogDebug("[CertValidation] Certificate validity: {NotBefore} to {NotAfter}", leafCert.NotBefore, leafCert.NotAfter);
 
             // Validate certificate chain
             if (certChain.Count > 1)
@@ -195,19 +205,19 @@ public class LoxoneWebSocketEncryption
             var rsaPublicKey = leafCert.GetRSAPublicKey();
             if (rsaPublicKey == null)
             {
-                System.Diagnostics.Debug.WriteLine("[CertValidation] ERROR: Leaf certificate does not contain RSA public key");
+                _logger.LogWarning("[CertValidation] Leaf certificate does not contain RSA public key");
                 throw new InvalidOperationException("Leaf certificate does not contain an RSA public key");
             }
 
             // Export public key in PEM format for RSA encryption
             var publicKeyPem = ExportRsaPublicKeyToPem(rsaPublicKey);
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Successfully extracted RSA public key ({publicKeyPem.Length} bytes)");
+            _logger.LogDebug("[CertValidation] Successfully extracted RSA public key ({Length} bytes)", publicKeyPem.Length);
             
             return publicKeyPem;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] ERROR: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogError(ex, "[CertValidation] Error: {ExceptionType}: {Message}", ex.GetType().Name, ex.Message);
             throw;
         }
     }
@@ -241,11 +251,11 @@ public class LoxoneWebSocketEncryption
                     var certBytes = Encoding.UTF8.GetBytes(pemCert);
                     var cert = new X509Certificate2(certBytes);
                     certs.Add(cert);
-                    System.Diagnostics.Debug.WriteLine($"[CertValidation] Parsed certificate: {cert.Subject}");
+                    _logger.LogDebug("[CertValidation] Parsed certificate: {Subject}", cert.Subject);
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CertValidation] Error parsing certificate: {ex.Message}");
+                    _logger.LogWarning(ex, "[CertValidation] Error parsing certificate: {Message}", ex.Message);
                 }
                 
                 inCert = false;
@@ -264,7 +274,7 @@ public class LoxoneWebSocketEncryption
     /// </summary>
     private static void ValidateCertificateChain(System.Collections.Generic.List<X509Certificate2> certChain)
     {
-        System.Diagnostics.Debug.WriteLine("[CertValidation] Validating certificate chain...");
+        _logger.LogDebug("[CertValidation] Validating certificate chain...");
         
         // Verify chain: each cert should be signed by the next cert in the chain
         for (int i = 0; i < certChain.Count - 1; i++)
@@ -272,12 +282,12 @@ public class LoxoneWebSocketEncryption
             var childCert = certChain[i];
             var parentCert = certChain[i + 1];
             
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Verifying {childCert.Subject} is signed by {parentCert.Subject}");
+            _logger.LogDebug("[CertValidation] Verifying {Child} is signed by {Parent}", childCert.Subject, parentCert.Subject);
             
             // The parent certificate's subject should match the child's issuer
             if (childCert.Issuer != parentCert.Subject)
             {
-                System.Diagnostics.Debug.WriteLine($"[CertValidation] WARNING: Issuer mismatch. Child issuer: {childCert.Issuer}, Parent subject: {parentCert.Subject}");
+                _logger.LogWarning("[CertValidation] Issuer mismatch. Child issuer: {ChildIssuer}, Parent subject: {ParentSubject}", childCert.Issuer, parentCert.Subject);
             }
         }
 
@@ -285,14 +295,14 @@ public class LoxoneWebSocketEncryption
         var rootCert = certChain[certChain.Count - 1];
         if (rootCert.Subject != rootCert.Issuer)
         {
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] WARNING: Root certificate is not self-signed. Subject: {rootCert.Subject}, Issuer: {rootCert.Issuer}");
+            _logger.LogWarning("[CertValidation] Root certificate is not self-signed. Subject: {Subject}, Issuer: {Issuer}", rootCert.Subject, rootCert.Issuer);
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[CertValidation] Root certificate is self-signed: {rootCert.Subject}");
+            _logger.LogDebug("[CertValidation] Root certificate is self-signed: {Subject}", rootCert.Subject);
         }
 
-        System.Diagnostics.Debug.WriteLine("[CertValidation] Certificate chain validation complete");
+        _logger.LogDebug("[CertValidation] Certificate chain validation complete");
     }
 
     /// <summary>

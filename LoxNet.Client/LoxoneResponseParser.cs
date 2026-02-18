@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet;
 
@@ -12,11 +13,18 @@ namespace LoxNet;
 /// </summary>
 public class LoxoneResponseParser
 {
+    private readonly ILogger<LoxoneResponseParser> _logger;
     private readonly LoxoneWebSocketEncryption? _encryption;
     private bool _skipDecryption = false;
 
     public LoxoneResponseParser(LoxoneWebSocketEncryption? encryption = null)
+        : this(LoggingExtensions.CreateChildLogger<LoxoneResponseParser>(), encryption)
     {
+    }
+
+    public LoxoneResponseParser(ILogger<LoxoneResponseParser> logger, LoxoneWebSocketEncryption? encryption = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _encryption = encryption;
     }
 
@@ -47,7 +55,7 @@ public class LoxoneResponseParser
         // If we're skipping decryption (e.g., during keyexchange), treat base64 as plain value
         if (_skipDecryption && IsBase64(normalized))
         {
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Decryption disabled, treating base64 as plain value");
+            _logger.LogDebug("[ResponseParser] Decryption disabled, treating base64 as plain value");
             var doc = JsonDocument.Parse("\"" + normalized + "\"");
             return new LoxoneMessage(200, doc.RootElement, null, doc);
         }
@@ -83,7 +91,7 @@ public class LoxoneResponseParser
         return trimmed.StartsWith("{") && payload.Contains("\"LL\"");
     }
 
-    private static bool IsEncryptedResponse(string payload)
+    private bool IsEncryptedResponse(string payload)
     {
         // Encrypted responses are typically base64-encoded and don't start with {
         var trimmed = payload.TrimStart();
@@ -103,7 +111,7 @@ public class LoxoneResponseParser
         if (trimmed.Length < 20)
             return false;
 
-        System.Diagnostics.Debug.WriteLine($"[ResponseParser] Payload detected as encrypted (base64, length={trimmed.Length})");
+        _logger.LogDebug("[ResponseParser] Payload detected as encrypted (base64, length={Length})", trimmed.Length);
         return true;
     }
 
@@ -182,11 +190,11 @@ public class LoxoneResponseParser
         // In that case, just return the response as-is (it's the keyexchange response)
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Attempting to decrypt response: {encryptedPayload.Substring(0, Math.Min(50, encryptedPayload.Length))}...");
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Encrypted payload length: {encryptedPayload.Length}");
+            _logger.LogDebug("[ResponseParser] Attempting to decrypt response: {Preview}...", encryptedPayload.Substring(0, Math.Min(50, encryptedPayload.Length)));
+            _logger.LogDebug("[ResponseParser] Encrypted payload length: {Length}", encryptedPayload.Length);
             
             var decrypted = _encryption.DecryptResponse(encryptedPayload);
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Successfully decrypted: {decrypted.Substring(0, Math.Min(100, decrypted.Length))}...");
+            _logger.LogDebug("[ResponseParser] Successfully decrypted: {Preview}...", decrypted.Substring(0, Math.Min(100, decrypted.Length)));
 
             // Try to parse as JSON
             if (decrypted.StartsWith("{"))
@@ -202,41 +210,41 @@ public class LoxoneResponseParser
         {
             // Encryption not yet initialized - this is likely the keyexchange response itself
             // Return it as a plain value (base64 string)
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Encryption not yet initialized, treating response as plain value (likely keyexchange response)");
+            _logger.LogWarning("[ResponseParser] Encryption not yet initialized, treating response as plain value (likely keyexchange response)");
             var doc = JsonDocument.Parse("\"" + encryptedPayload + "\"");
             return new LoxoneMessage(200, doc.RootElement, null, doc);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("AES decryption failed"))
         {
             // Decryption failed - likely wrong key/IV or the response isn't actually encrypted
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] AES decryption failed: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] This could mean: 1) Wrong key/IV, 2) Response isn't encrypted, or 3) Data corrupted");
+            _logger.LogWarning(ex, "[ResponseParser] AES decryption failed: {Message}", ex.Message);
+            _logger.LogWarning("[ResponseParser] This could mean: 1) Wrong key/IV, 2) Response isn't encrypted, or 3) Data corrupted");
             
             // Try to parse as plain JSON in case it's just a regular JSON response
             if (encryptedPayload.TrimStart().StartsWith("{"))
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ResponseParser] Attempting to parse as plain JSON...");
+                    _logger.LogDebug("[ResponseParser] Attempting to parse as plain JSON...");
                     return ParseJsonResponse(encryptedPayload);
                 }
                 catch
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ResponseParser] Plain JSON parse failed, treating as plain value");
+                    _logger.LogDebug("[ResponseParser] Plain JSON parse failed, treating as plain value");
                 }
             }
             
             // If all else fails, return as plain value with error code
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Returning encrypted payload as plain value");
+            _logger.LogDebug("[ResponseParser] Returning encrypted payload as plain value");
             var doc = JsonDocument.Parse("\"" + encryptedPayload + "\"");
             return new LoxoneMessage(200, doc.RootElement, null, doc);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Failed to decrypt: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogError(ex, "[ResponseParser] Failed to decrypt: {ExceptionType}: {Message}", ex.GetType().Name, ex.Message);
             
             // Last resort: return the raw payload as a value
-            System.Diagnostics.Debug.WriteLine($"[ResponseParser] Returning as plain value after exception");
+            _logger.LogWarning("[ResponseParser] Returning as plain value after exception");
             try
             {
                 var doc = JsonDocument.Parse("\"" + encryptedPayload + "\"");

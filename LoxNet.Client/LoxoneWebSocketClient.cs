@@ -5,12 +5,14 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Websocket.Client;
 
 namespace LoxNet;
 
 public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 {
+    private readonly ILogger<LoxoneWebSocketClient> _logger;
     private readonly ILoxoneHttpClient _http;
     private WebsocketClient? _wsClient;
     private LoxoneWebSocketEncryption? _encryption;
@@ -23,7 +25,13 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     public event EventHandler<string>? MessageReceived;
 
     public LoxoneWebSocketClient(ILoxoneHttpClient httpClient)
+        : this(LoggingExtensions.CreateChildLogger<LoxoneWebSocketClient>(), httpClient)
     {
+    }
+
+    public LoxoneWebSocketClient(ILogger<LoxoneWebSocketClient> logger, ILoxoneHttpClient httpClient)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     }
 
@@ -50,7 +58,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         // Monitor disconnections for diagnostics
         _wsClient.DisconnectionHappened.Subscribe(info =>
         {
-            System.Diagnostics.Debug.WriteLine($"[WebSocket] Disconnected: Status={info.CloseStatus}, Reason={info.CloseStatusDescription}, Exception={info.Exception?.Message}");
+            _logger.LogWarning("[WebSocket] Disconnected: Status={Status}, Reason={Reason}, Exception={ExceptionMessage}", info.CloseStatus, info.CloseStatusDescription, info.Exception?.Message);
         });
 
         _wsClient.MessageReceived.Subscribe(msg =>
@@ -86,7 +94,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"[WebSocket] Error processing parsed JSON: {ex.Message}");
+                                _logger.LogError(ex, "[WebSocket] Error processing parsed JSON");
                             }
 
                             // Remove parsed bytes from buffer
@@ -109,12 +117,12 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[WebSocket] Error processing message: {ex.Message}");
+                _logger.LogError(ex, "[WebSocket] Error processing message");
             }
         });
 
         await _wsClient.Start();
-        System.Diagnostics.Debug.WriteLine($"[WebSocket] Connected to {uri}");
+        _logger.LogDebug("[WebSocket] Connected to {Uri}", uri);
     }
 
     public Task CloseAsync(CancellationToken cancellationToken = default)
@@ -147,30 +155,31 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 
         // Send as plain text message, not wrapped in binary frame with headers
         // The Python version sends the command directly: await self.connection.send([command])
+        _logger.LogDebug("[SendString] Sending text message: {Preview}...", text.Substring(0, Math.Min(150, text.Length)));
         _wsClient.Send(text);
         return Task.CompletedTask;
     }
 
     private async Task<LoxoneMessage> SendCommandAsync(string command, CancellationToken cancellationToken)
     {
-        System.Diagnostics.Debug.WriteLine($"[SendCommand] Sending: {command.Substring(0, Math.Min(80, command.Length))}...");
+        _logger.LogDebug("[SendCommand] Sending: {Preview}...", command.Substring(0, Math.Min(80, command.Length)));
         await SendStringAsync(command, cancellationToken).ConfigureAwait(false);
-        System.Diagnostics.Debug.WriteLine($"[SendCommand] Command sent, waiting for response...");
+        _logger.LogDebug("[SendCommand] Command sent, waiting for response...");
         
         try
         {
             var response = await ReceiveStringAsync(cancellationToken).ConfigureAwait(false);
-            System.Diagnostics.Debug.WriteLine($"[SendCommand] Response received: {response.Substring(0, Math.Min(100, response.Length))}...");
+            _logger.LogDebug("[SendCommand] Response received: {Preview}...", response.Substring(0, Math.Min(100, response.Length)));
             
             // Use the response parser to handle different response formats
-            var parser = new LoxoneResponseParser(_encryption);
+            var parser = new LoxoneResponseParser(LoggingExtensions.CreateChildLogger<LoxoneResponseParser>(), _encryption);
             var result = parser.Parse(response);
             
             return result;
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("closed without receiving"))
         {
-            System.Diagnostics.Debug.WriteLine($"[SendCommand] WebSocket closed before receiving response: {ex.Message}");
+            _logger.LogWarning(ex, "[SendCommand] WebSocket closed before receiving response: {Message}", ex.Message);
             throw new InvalidOperationException($"Server closed WebSocket for command '{command}': {ex.Message}", ex);
         }
     }
@@ -182,7 +191,13 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         msg.EnsureSuccess();
         var key = HexUtils.FromHexString(msg.Value.GetString()!);
         var digest = LoxoneHttpClient.HmacHex(key, Encoding.UTF8.GetBytes(token), System.Security.Cryptography.HashAlgorithmName.SHA1);
-        return await SendCommandAsync($"authwithtoken/{digest}/{user}", cancellationToken).ConfigureAwait(false);
+        
+        _logger.LogDebug("[AuthenticateWithToken] Sending auth command for user={User}", user);
+        var authMsg = await SendCommandAsync($"authwithtoken/{digest}/{user}", cancellationToken).ConfigureAwait(false);
+        
+        _logger.LogDebug("[AuthenticateWithToken] Auth response code={Code}, value={Preview}", authMsg.Code, authMsg.Value.GetRawText().Substring(0, Math.Min(100, authMsg.Value.GetRawText().Length)));
+        
+        return authMsg;
     }
 
     /// <summary>
@@ -194,7 +209,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         if (_wsClient is null) throw new InvalidOperationException("WebSocket not connected");
         if (_encryption is null) throw new InvalidOperationException("Encryption not initialized; call PerformKeyExchangeAsync first");
 
-        System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] Acquiring JWT for user={user}, permission={permission}");
+        _logger.LogDebug("[LoxoneWebSocketClient] Acquiring JWT for user={User}, permission={Permission}", user, permission);
 
         // Build getjwt command (same as HTTP flow, but will be encrypted)
         var keyInfo = await _http.GetKey2Async(user, cancellationToken).ConfigureAwait(false);
@@ -221,6 +236,29 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 
         // Parse the JWT response
         var val = response.Value;
+        
+        // If the response is an encrypted string, decrypt it first
+        if (val.ValueKind == System.Text.Json.JsonValueKind.String)
+        {
+            var encryptedResponse = val.GetString()!;
+            _logger.LogDebug("[LoxoneWebSocketClient] JWT response is encrypted, decrypting...");
+            
+            try
+            {
+                var decrypted = _encryption!.DecryptResponse(encryptedResponse);
+                _logger.LogDebug("[LoxoneWebSocketClient] Decrypted JWT response: {Preview}...", decrypted.Substring(0, Math.Min(100, decrypted.Length)));
+                
+                // Parse the decrypted JSON
+                using var doc = JsonDocument.Parse(decrypted);
+                val = doc.RootElement;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[LoxoneWebSocketClient] Failed to decrypt JWT response: {Message}", ex.Message);
+                throw new InvalidOperationException($"Failed to decrypt JWT response: {ex.Message}", ex);
+            }
+        }
+        
         var token = new TokenInfo(
             val.GetProperty("token").GetString()!,
             val.GetProperty("validUntil").GetInt64(),
@@ -229,7 +267,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
             val.GetProperty("key").GetString()!
         );
 
-        System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] JWT acquired: rights={token.TokenRights}");
+        _logger.LogDebug("[LoxoneWebSocketClient] JWT acquired: rights={Rights}", token.TokenRights);
         return token;
     }
 
@@ -240,23 +278,23 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     /// </summary>
     public async Task PrepareEncryptionAsync(CancellationToken cancellationToken = default)
     {
-        System.Diagnostics.Debug.WriteLine("[LoxoneWebSocketClient] Preparing encryption - fetching certificate from Miniserver...");
+        _logger.LogDebug("[LoxoneWebSocketClient] Preparing encryption - fetching certificate from Miniserver...");
         
         try
         {
             _cachedCertificate = await _http.RequestTextAsync("jdev/sys/getcertificate", cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrEmpty(_cachedCertificate))
             {
-                System.Diagnostics.Debug.WriteLine("[LoxoneWebSocketClient] Warning: Empty certificate returned from server");
+                _logger.LogWarning("[LoxoneWebSocketClient] Empty certificate returned from server");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] Certificate cached successfully, length={_cachedCertificate.Length}");
+                _logger.LogDebug("[LoxoneWebSocketClient] Certificate cached successfully, length={Length}", _cachedCertificate.Length);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] Error preparing encryption: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogError(ex, "[LoxoneWebSocketClient] Error preparing encryption: {ExceptionType}: {Message}", ex.GetType().Name, ex.Message);
             throw;
         }
     }
@@ -270,7 +308,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     {
         if (_wsClient is null) throw new InvalidOperationException("WebSocket not connected");
         
-        _encryption = new LoxoneWebSocketEncryption(_http, _cachedCertificate);
+        _encryption = new LoxoneWebSocketEncryption(LoggingExtensions.CreateChildLogger<LoxoneWebSocketEncryption>(), _http, _cachedCertificate);
         
         // Use SendCommandAsync which returns the response
         // During keyexchange, the response is NOT AES-encrypted, so we need a special handler
@@ -278,17 +316,17 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Sending keyexchange via SendCommandAsync: {cmd.Substring(0, Math.Min(80, cmd.Length))}...");
+                _logger.LogDebug("[Keyexchange] Sending keyexchange via SendCommandAsync: {Preview}...", cmd.Substring(0, Math.Min(80, cmd.Length)));
                 
                 // For keyexchange, skip decryption since the response isn't AES-encrypted yet
-                var parser = new LoxoneResponseParser(_encryption);
+                var parser = new LoxoneResponseParser(LoggingExtensions.CreateChildLogger<LoxoneResponseParser>(), _encryption);
                 parser.SetSkipDecryption(true);
                 
                 // Manually send and receive to use the parser with skip flag
                 await SendStringAsync(cmd, ct).ConfigureAwait(false);
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Command sent, waiting for response...");
+                _logger.LogDebug("[Keyexchange] Command sent, waiting for response...");
                 var response = await ReceiveStringAsync(ct).ConfigureAwait(false);
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Response received: {response.Substring(0, Math.Min(100, response.Length))}...");
+                _logger.LogDebug("[Keyexchange] Response received: {Preview}...", response.Substring(0, Math.Min(100, response.Length)));
                 
                 var msg = parser.Parse(response);
                 try
@@ -296,7 +334,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
                     // Check for errors first
                     if (msg.Code < 200 || msg.Code >= 300)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[Keyexchange] Server returned error code {msg.Code}: {msg.Message}");
+                        _logger.LogWarning("[Keyexchange] Server returned error code {Code}: {Message}", msg.Code, msg.Message);
                         return null;
                     }
 
@@ -306,12 +344,12 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
                     // Extract value - might be string (error) or object (success)
                     if (msg.Value.ValueKind == System.Text.Json.JsonValueKind.Undefined)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[Keyexchange] Server response has no value");
+                        _logger.LogWarning("[Keyexchange] Server response has no value");
                         return null;
                     }
 
                     var rawText = msg.Value.GetRawText();
-                    System.Diagnostics.Debug.WriteLine($"[Keyexchange] Response received and parsed: {rawText.Substring(0, Math.Min(100, rawText.Length))}...");
+                    _logger.LogDebug("[Keyexchange] Response received and parsed: {Preview}...", rawText.Substring(0, Math.Min(100, rawText.Length)));
                     return rawText;
                 }
                 finally
@@ -321,16 +359,12 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("Server closed WebSocket"))
             {
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Server closed connection during keyexchange. This typically means:");
-                System.Diagnostics.Debug.WriteLine($"  1. Keyexchange command format is incorrect");
-                System.Diagnostics.Debug.WriteLine($"  2. RSA-encrypted session key is invalid");
-                System.Diagnostics.Debug.WriteLine($"  3. Miniserver doesn't support encrypted WebSocket communication");
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Exception: {ex.InnerException?.Message}");
+                _logger.LogWarning(ex, "[Keyexchange] Server closed connection during keyexchange. This typically means: 1) Keyexchange command format is incorrect 2) RSA-encrypted session key is invalid 3) Miniserver doesn't support encrypted WebSocket communication. Inner={Inner}", ex.InnerException?.Message);
                 return null;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Error sending keyexchange: {ex.GetType().Name}: {ex.Message}");
+                _logger.LogError(ex, "[Keyexchange] Error sending keyexchange: {ExceptionType}: {Message}", ex.GetType().Name, ex.Message);
                 return null;
             }
         };
@@ -339,11 +373,11 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         
         if (success)
         {
-            System.Diagnostics.Debug.WriteLine("[LoxoneWebSocketClient] Encryption initialized successfully");
+            _logger.LogDebug("[LoxoneWebSocketClient] Encryption initialized successfully");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine("[LoxoneWebSocketClient] Encryption initialization failed");
+            _logger.LogWarning("[LoxoneWebSocketClient] Encryption initialization failed");
             _encryption = null;
         }
 
@@ -365,7 +399,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
             await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
 #else
-        while (_ws is not null && _ws.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+        while (_wsClient is not null && !cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
