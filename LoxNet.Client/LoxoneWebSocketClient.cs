@@ -232,7 +232,8 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         // Encrypt and send the command
         // Note: Don't URL-encode the encrypted command! Send it raw like the keyexchange.
         var encryptedCmd = _encryption.EncryptCommand(getJwtCmd);
-        var response = await SendCommandAsync($"jdev/sys/fenc/{encryptedCmd}", cancellationToken).ConfigureAwait(false);
+        var encodedCmd = Uri.EscapeDataString(encryptedCmd);
+        var response = await SendCommandAsync($"jdev/sys/enc/{encodedCmd}", cancellationToken).ConfigureAwait(false);
 
         // Parse the JWT response
         var val = response.Value;

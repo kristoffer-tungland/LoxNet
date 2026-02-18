@@ -21,6 +21,7 @@ public class LoxoneWebSocketEncryption
     private byte[]? _aesKey;
     private byte[]? _aesIv;
     private string? _salt;
+    private bool _hasSentEncryptedCommand;
 
     public LoxoneWebSocketEncryption(ILoxoneHttpClient httpClient, string? cachedCertificate = null)
         : this(LoggingExtensions.CreateChildLogger<LoxoneWebSocketEncryption>(), httpClient, cachedCertificate)
@@ -130,14 +131,24 @@ public class LoxoneWebSocketEncryption
         if (_aesKey == null || _aesIv == null || string.IsNullOrEmpty(_salt))
             throw new InvalidOperationException("Keyexchange not yet performed");
 
-        // Format: salt/{salt}/{command}
-        var plaintext = $"salt/{_salt}/{command}";
-        var encrypted = EncryptionUtils.AesEncrypt(plaintext, _aesKey, _aesIv);
-        
-        // Update salt after each command for security
-        _salt = EncryptionUtils.GenerateRandomHex(16);
+        string plaintext;
 
-        return encrypted;
+        if (!_hasSentEncryptedCommand)
+        {
+            // First encrypted command uses: salt/{salt}/{command}\x00
+            plaintext = $"salt/{_salt}/{command}\0";
+            _hasSentEncryptedCommand = true;
+        }
+        else
+        {
+            // Subsequent commands rotate salt: nextSalt/{oldSalt}/{newSalt}/{command}\x00
+            var oldSalt = _salt;
+            var newSalt = EncryptionUtils.GenerateRandomHex(16);
+            plaintext = $"nextSalt/{oldSalt}/{newSalt}/{command}\0";
+            _salt = newSalt;
+        }
+
+        return EncryptionUtils.AesEncrypt(plaintext, _aesKey, _aesIv);
     }
 
     /// <summary>
