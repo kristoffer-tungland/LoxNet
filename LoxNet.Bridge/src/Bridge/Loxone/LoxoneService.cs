@@ -8,14 +8,18 @@ namespace LoxNet.Bridge.Loxone;
 public class LoxoneService : ILoxoneCommandExecutor
 {
     private readonly ILogger<LoxoneService> _logger;
+    private readonly ILogger<LoxoneClient> _loxoneClientLogger;
+    private readonly ILogger<LoxoneStructureState> _structureLogger;
     private readonly LoxoneStateParser _stateParser;
     private LoxoneClient? _client;
     private LoxoneStructureState? _structure;
     private Func<string, NormalizedLightState, CancellationToken, Task>? _callback;
 
-    public LoxoneService(ILogger<LoxoneService> logger, LoxoneStateParser stateParser)
+    public LoxoneService(ILogger<LoxoneService> logger, ILogger<LoxoneClient> loxoneClientLogger, ILogger<LoxoneStructureState> structureLogger, LoxoneStateParser stateParser)
     {
         _logger = logger;
+        _loxoneClientLogger = loxoneClientLogger;
+        _structureLogger = structureLogger;
         _stateParser = stateParser;
     }
 
@@ -26,9 +30,9 @@ public class LoxoneService : ILoxoneCommandExecutor
     public async Task StartAsync(BridgeConfig config, Func<string, NormalizedLightState, CancellationToken, Task> callback, CancellationToken cancellationToken)
     {
         _callback = callback;
-        _client = new LoxoneClient(new LoxoneConnectionOptions(config.Loxone.Host, config.Loxone.Port, config.Loxone.UseHttps));
+        _client = new LoxoneClient(_loxoneClientLogger, new LoxoneConnectionOptions(config.Loxone.Host, config.Loxone.Port, config.Loxone.UseHttps));
         await _client.LoginAsync(config.Loxone.User, config.Loxone.Password, cancellationToken: cancellationToken).ConfigureAwait(false);
-        _structure = new LoxoneStructureState(_client.Http, wsClient: _client.WebSocket);
+        _structure = new LoxoneStructureState(_structureLogger, _client.Http, wsClient: _client.WebSocket);
         await _structure.LoadAsync(cancellationToken).ConfigureAwait(false);
         await SubscribeToMappingsAsync(config, cancellationToken).ConfigureAwait(false);
         _ = Task.Run(() => _client.WebSocket.ListenAsync(cancellationToken), cancellationToken);

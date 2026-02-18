@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet;
 
 public class LoxoneStructureState : ILoxoneStructureState
 {
     private readonly ILoxoneHttpClient _httpClient;
+    private readonly ILogger<LoxoneStructureState> _logger;
     private readonly Dictionary<string, LoxoneControl> _uuidMap = new();
     private readonly Dictionary<string, LoxoneRoom> _roomMap = new();
     private readonly Dictionary<string, LoxoneCategory> _categoryMap = new();
@@ -19,10 +21,12 @@ public class LoxoneStructureState : ILoxoneStructureState
     /// <summary>
     /// Initializes the cache.
     /// </summary>
+    /// <param name="logger">Logger for diagnostics.</param>
     /// <param name="httpClient">HTTP client for server communication.</param>
     /// <param name="lightMode">When <c>true</c> only <see cref="LoxoneControl"/> instances are created.</param>
-    public LoxoneStructureState(ILoxoneHttpClient httpClient, bool lightMode = false, ILoxoneWebSocketClient? wsClient = null)
+    public LoxoneStructureState(ILogger<LoxoneStructureState> logger, ILoxoneHttpClient httpClient, bool lightMode = false, ILoxoneWebSocketClient? wsClient = null)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _lightMode = lightMode;
         if (wsClient != null)

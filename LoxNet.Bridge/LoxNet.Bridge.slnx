@@ -14,7 +14,9 @@
   <Folder Name="/src/">
     <Project Path="src/Bridge/Bridge.csproj" />
   </Folder>
-  <Folder Name="/tests/" />
+  <Folder Name="/tests/">
+    <Project Path="../LoxNet.Tests/LoxNet.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Bridge.Tests/">
     <Project Path="tests/Bridge.Tests/LoxNet.Bridge.Tests.csproj" />
   </Folder>

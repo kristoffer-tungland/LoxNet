@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using LoxNet;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet.Tests;
 
@@ -40,6 +41,7 @@ public class LoxoneClientTokenTests
         public event EventHandler<string>? MessageReceived;
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task PrepareEncryptionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => Task.FromResult(new TokenInfo("jwt", 0, 0, false, "k"));
         public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
@@ -53,9 +55,10 @@ public class LoxoneClientTokenTests
     [Fact]
     public async Task EnsureValidTokenAsync_RefreshesExpired()
     {
+        var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneClient>();
         var http = new MockHttp();
         var ws = new MockWs();
-        var client = new LoxoneClient(http, ws);
+        var client = new LoxoneClient(logger, http, ws);
         await client.LoginAsync("u", "p");
 
         http.LastToken = new TokenInfo("old", DateTimeOffset.UtcNow.AddSeconds(-1).ToUnixTimeSeconds(), 0, false, "k");
@@ -70,9 +73,10 @@ public class LoxoneClientTokenTests
     [Fact]
     public async Task WebSocketCommand_TriggersRefresh()
     {
+        var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneClient>();
         var http = new MockHttp();
         var ws = new MockWs();
-        var client = new LoxoneClient(http, ws, TimeSpan.FromSeconds(30));
+        var client = new LoxoneClient(logger, http, ws, TimeSpan.FromSeconds(30));
         await client.LoginAsync("u", "p");
 
         http.LastToken = new TokenInfo("old", DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds(), 0, false, "k");

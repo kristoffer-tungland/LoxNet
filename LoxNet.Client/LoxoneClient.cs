@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet;
 
@@ -12,29 +13,32 @@ public class LoxoneClient : ILoxoneClient
     private readonly ILoxoneWebSocketClient _wsClient;
     private readonly TimeSpan _refreshWindow;
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
+    private readonly ILogger<LoxoneClient> _logger;
 
     public ILoxoneHttpClient Http { get; }
     public ILoxoneWebSocketClient WebSocket { get; }
     public string? Username { get; private set; }
 
-    public LoxoneClient(LoxoneConnectionOptions options, TimeSpan? refreshWindow = null)
+    public LoxoneClient(ILogger<LoxoneClient> logger, LoxoneConnectionOptions options, TimeSpan? refreshWindow = null)
     {
-        _httpClient = new LoxoneHttpClient(options);
-        _wsClient = new LoxoneWebSocketClient(_httpClient);
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClient = new LoxoneHttpClient(LoggingExtensions.CreateChildLogger<LoxoneHttpClient>(), options);
+        _wsClient = new LoxoneWebSocketClient(LoggingExtensions.CreateChildLogger<LoxoneWebSocketClient>(), _httpClient);
         _refreshWindow = refreshWindow ?? TimeSpan.FromSeconds(30);
         Http = new HttpProxy(this, _httpClient);
         WebSocket = new WebSocketProxy(this, _wsClient);
     }
 
-    public LoxoneClient(string host, int port = 80, bool secure = false, TimeSpan? refreshWindow = null)
-        : this(new LoxoneConnectionOptions(host, port, secure), refreshWindow)
+    public LoxoneClient(ILogger<LoxoneClient> logger, string host, int port = 80, bool secure = false, TimeSpan? refreshWindow = null)
+        : this(logger, new LoxoneConnectionOptions(host, port, secure), refreshWindow)
     {
     }
 
-    public LoxoneClient(ILoxoneHttpClient httpClient, ILoxoneWebSocketClient? wsClient = null, TimeSpan? refreshWindow = null)
+    public LoxoneClient(ILogger<LoxoneClient> logger, ILoxoneHttpClient httpClient, ILoxoneWebSocketClient? wsClient = null, TimeSpan? refreshWindow = null)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _wsClient = wsClient ?? new LoxoneWebSocketClient(_httpClient);
+        _wsClient = wsClient ?? new LoxoneWebSocketClient(LoggingExtensions.CreateChildLogger<LoxoneWebSocketClient>(), _httpClient);
         _refreshWindow = refreshWindow ?? TimeSpan.FromSeconds(30);
         Http = new HttpProxy(this, _httpClient);
         WebSocket = new WebSocketProxy(this, _wsClient);
@@ -46,32 +50,37 @@ public class LoxoneClient : ILoxoneClient
     /// </summary>
     public async Task LoginAsync(string user, string password, int permission = 4, string info = "LoxNet", CancellationToken cancellationToken = default)
     {
-        System.Diagnostics.Debug.WriteLine($"[LoxoneClient] Starting encrypted login for user='{user}'");
+        _logger.LogInformation("Starting encrypted login for user '{User}'", user);
         
-        // Connect WebSocket
+        // Step 1 (per Loxone docs): Fetch certificate via HTTP BEFORE opening WebSocket
+        // This removes HTTP latency from the critical auth window
+        await WebSocket.PrepareEncryptionAsync(cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("Encryption preparation complete (certificate cached)");
+        
+        // Step 2 (per Loxone docs): Open WebSocket and start receive loop immediately
         await WebSocket.ConnectAsync(cancellationToken).ConfigureAwait(false);
-        System.Diagnostics.Debug.WriteLine("[LoxoneClient] WebSocket connected");
+        _logger.LogInformation("WebSocket connected");
 
-        // Initialize encryption via keyexchange
+        // Step 3 (per Loxone docs): Initialize encryption via keyexchange (fast, already have cert)
         var encryptionOk = await WebSocket.InitializeEncryptionAsync(cancellationToken).ConfigureAwait(false);
         if (!encryptionOk)
         {
             await WebSocket.CloseAsync(cancellationToken).ConfigureAwait(false);
             throw new InvalidOperationException("Failed to initialize WebSocket encryption. Check debug output for keyexchange error details. Ensure the Miniserver is accessible and supports encrypted WebSocket communication.");
         }
-        System.Diagnostics.Debug.WriteLine("[LoxoneClient] Encryption initialized");
+        _logger.LogDebug("Encryption initialized");
 
-        // Acquire JWT via encrypted WebSocket
+        // Step 4 (per Loxone docs): Acquire JWT via encrypted WebSocket
         var token = await WebSocket.AcquireJwtTokenAsync(user, password, permission, info, cancellationToken).ConfigureAwait(false);
-        System.Diagnostics.Debug.WriteLine($"[LoxoneClient] JWT obtained: rights={token.TokenRights}");
+        _logger.LogInformation("JWT obtained: rights={TokenRights}", token.TokenRights);
 
         // Store token in HTTP client for later use
         Http.LastToken = token;
 
-        // Authenticate WebSocket with the token
+        // Step 5 (per Loxone docs): Authenticate WebSocket with the token
         var authMsg = await WebSocket.AuthenticateWithTokenAsync(token.Token, user, cancellationToken).ConfigureAwait(false);
         authMsg.EnsureSuccess();
-        System.Diagnostics.Debug.WriteLine("[LoxoneClient] WebSocket authenticated");
+        _logger.LogDebug("WebSocket authenticated");
 
         Username = user;
     }
@@ -197,6 +206,9 @@ public class LoxoneClient : ILoxoneClient
 
         public Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default) =>
             _inner.InitializeEncryptionAsync(cancellationToken);
+
+        public Task PrepareEncryptionAsync(CancellationToken cancellationToken = default) =>
+            _inner.PrepareEncryptionAsync(cancellationToken);
 
         public Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) =>
             _inner.AcquireJwtTokenAsync(user, password, permission, info, cancellationToken);

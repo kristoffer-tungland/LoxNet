@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet;
 
@@ -12,11 +13,13 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 {
     private readonly HttpClient _http;
     private readonly bool _disposeHttpClient;
+    private readonly ILogger<LoxoneHttpClient> _logger;
     public LoxoneConnectionOptions Options { get; }
     public TokenInfo? LastToken { get; set; }
 
-    public LoxoneHttpClient(HttpClient httpClient, LoxoneConnectionOptions options)
+    public LoxoneHttpClient(ILogger<LoxoneHttpClient> logger, HttpClient httpClient, LoxoneConnectionOptions options)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         Options = options ?? throw new ArgumentNullException(nameof(options));
         _disposeHttpClient = false;
@@ -24,8 +27,9 @@ public class LoxoneHttpClient : ILoxoneHttpClient
             _http.BaseAddress = new Uri($"{(Options.Secure ? "https" : "http")}://{Options.Host}:{Options.Port}");
     }
 
-    public LoxoneHttpClient(HttpClient httpClient)
+    public LoxoneHttpClient(ILogger<LoxoneHttpClient> logger, HttpClient httpClient)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         if (_http.BaseAddress is null)
             throw new ArgumentException("HttpClient must have BaseAddress set", nameof(httpClient));
@@ -36,8 +40,8 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         _disposeHttpClient = false;
     }
 
-    public LoxoneHttpClient(LoxoneConnectionOptions options)
-        : this(new HttpClient(), options)
+    public LoxoneHttpClient(ILogger<LoxoneHttpClient> logger, LoxoneConnectionOptions options)
+        : this(logger, new HttpClient(), options)
     {
         _disposeHttpClient = true;
     }
@@ -59,7 +63,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 #endif
             }
             catch { }
-            System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] HTTP {resp.StatusCode} for path '{path}': {content}");
+            _logger.LogError("HTTP {StatusCode} for path '{Path}': {Content}", resp.StatusCode, path, content);
             resp.EnsureSuccessStatusCode();
         }
 #if NET48
@@ -132,7 +136,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         var encInfo = Uri.EscapeDataString(info);
         var path = $"jdev/sys/getjwt/{userHash}/{Uri.EscapeDataString(user)}/{permission}/{uid}/{encInfo}";
         var url = $"{BaseUrl}/{path}";
-        System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] Requesting JWT URL: {url}");
+        _logger.LogDebug("Requesting JWT URL: {Url}", url);
         using var doc = await RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
@@ -149,11 +153,11 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         try
         {
             var claims = DecodeJwtPayload(token.Token);
-            System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] Decoded JWT payload: {claims}");
+            _logger.LogDebug("Decoded JWT payload: {Claims}", claims);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LoxoneHttpClient] Failed to decode JWT payload: {ex}");
+            _logger.LogWarning(ex, "Failed to decode JWT payload");
         }
         return token;
     }

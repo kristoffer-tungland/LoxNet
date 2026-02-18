@@ -6,6 +6,9 @@ loxone:
 mqtt:
   host: "localhost"
 
+logging:
+  minLevel: "Information"
+
 mappings:
   - name: "Example dimmer"
     kind: "dimmer"

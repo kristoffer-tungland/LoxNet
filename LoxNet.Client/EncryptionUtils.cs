@@ -54,19 +54,35 @@ public static class EncryptionUtils
         if (key.Length != 32) throw new ArgumentException("Key must be 32 bytes for AES256", nameof(key));
         if (iv.Length != 16) throw new ArgumentException("IV must be 16 bytes", nameof(iv));
 
-        using (var aes = Aes.Create())
+        try
         {
-            aes.Key = key;
-            aes.IV = iv;
-            aes.Mode = CipherMode.CBC;
-            aes.Padding = PaddingMode.PKCS7;
-
-            using (var decryptor = aes.CreateDecryptor())
+            using (var aes = Aes.Create())
             {
-                var data = Convert.FromBase64String(ciphertext);
-                var decrypted = decryptor.TransformFinalBlock(data, 0, data.Length);
-                return Encoding.UTF8.GetString(decrypted);
+                aes.Key = key;
+                aes.IV = iv;
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using (var decryptor = aes.CreateDecryptor())
+                {
+                    var data = Convert.FromBase64String(ciphertext);
+                    var decrypted = decryptor.TransformFinalBlock(data, 0, data.Length);
+                    return Encoding.UTF8.GetString(decrypted);
+                }
             }
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to decode base64 ciphertext. Input length: {ciphertext.Length}, first 50 chars: {ciphertext.Substring(0, Math.Min(50, ciphertext.Length))}",
+                ex);
+        }
+        catch (CryptographicException ex)
+        {
+            // Padding errors usually indicate wrong key/IV or corrupted data
+            throw new InvalidOperationException(
+                $"AES decryption failed - likely wrong key/IV or corrupted data. Key length: {key.Length}, IV length: {iv.Length}, ciphertext length: {ciphertext.Length}",
+                ex);
         }
     }
 

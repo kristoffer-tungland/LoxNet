@@ -10,6 +10,8 @@ public class BridgeConfig
 
     public SyncSection Sync { get; init; } = new();
 
+    public LoggingSection Logging { get; init; } = new();
+
     public List<MappingSection> Mappings { get; init; } = new();
 
     public void Validate()
@@ -88,6 +90,11 @@ public class SyncSection
     public int KelvinTolerance { get; init; } = 25;
 
     public int SuppressEchoWindowMs { get; init; }
+}
+
+public class LoggingSection
+{
+    public string MinLevel { get; init; } = "Information";
 }
 
 public class MappingSection

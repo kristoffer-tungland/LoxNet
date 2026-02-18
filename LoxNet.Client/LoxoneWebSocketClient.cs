@@ -1,17 +1,25 @@
 using System;
-using System.Net.WebSockets;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using Websocket.Client;
 
 namespace LoxNet;
 
 public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 {
     private readonly ILoxoneHttpClient _http;
-    private ClientWebSocket? _ws;
+    private WebsocketClient? _wsClient;
     private LoxoneWebSocketEncryption? _encryption;
+    private System.IO.MemoryStream? _receiveBuffer;
+    private string? _cachedCertificate;
+    
+    // Channel for async message passing - properly handles queuing and async waiting
+    private Channel<string>? _messageChannel;
+    
     public event EventHandler<string>? MessageReceived;
 
     public LoxoneWebSocketClient(ILoxoneHttpClient httpClient)
@@ -22,111 +30,125 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         var opts = _http.Options;
-        _ws = new ClientWebSocket();
-        _ws.Options.AddSubProtocol("remotecontrol");
         string scheme = opts.Secure ? "wss" : "ws";
-        await _ws.ConnectAsync(new Uri($"{scheme}://{opts.Host}:{opts.Port}/ws/rfc6455"), cancellationToken).ConfigureAwait(false);
+        var uri = new Uri($"{scheme}://{opts.Host}:{opts.Port}/ws/rfc6455");
+
+        _wsClient = new WebsocketClient(uri);
+        _receiveBuffer = new System.IO.MemoryStream();
+        
+        // Create unbounded channel for message passing - will never block or fail
+        _messageChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions 
+        { 
+            SingleReader = false,  // Multiple readers (for broadcast)
+            SingleWriter = true    // Single writer (the message handler)
+        });
+        
+        // Configure Websocket.Client for better reliability
+        _wsClient.ReconnectTimeout = null; // disable auto-reconnect for authentication flow
+        _wsClient.ErrorReconnectTimeout = TimeSpan.FromSeconds(5); // but reconnect on errors
+        
+        // Monitor disconnections for diagnostics
+        _wsClient.DisconnectionHappened.Subscribe(info =>
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebSocket] Disconnected: Status={info.CloseStatus}, Reason={info.CloseStatusDescription}, Exception={info.Exception?.Message}");
+        });
+
+        _wsClient.MessageReceived.Subscribe(msg =>
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(msg.Text))
+                {
+                    // Write to channel (never blocks or fails on unbounded channel)
+                    _messageChannel?.Writer.TryWrite(msg.Text);
+                    
+                    MessageReceived?.Invoke(this, msg.Text);
+                    return;
+                }
+
+                if (msg.Binary != null && msg.Binary.Length > 0)
+                {
+                    lock (_receiveBuffer!)
+                    {
+                        // Append incoming bytes
+                        _receiveBuffer!.Write(msg.Binary, 0, msg.Binary.Length);
+                        var bufferArray = _receiveBuffer.ToArray();
+
+                        // Try to parse as many complete messages as possible
+                        while (BinaryProtocolParser.TryParseMessage(bufferArray, out var parsedJson, out var parsedLen))
+                        {
+                            try
+                            {
+                                // Write to channel (never blocks or fails on unbounded channel)
+                                _messageChannel?.Writer.TryWrite(parsedJson);
+                                
+                                MessageReceived?.Invoke(this, parsedJson);
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[WebSocket] Error processing parsed JSON: {ex.Message}");
+                            }
+
+                            // Remove parsed bytes from buffer
+                            var remaining = bufferArray.Length - parsedLen;
+                            if (remaining <= 0)
+                            {
+                                _receiveBuffer.SetLength(0);
+                                bufferArray = Array.Empty<byte>();
+                                break;
+                            }
+
+                            var tmp = new byte[remaining];
+                            Array.Copy(bufferArray, parsedLen, tmp, 0, remaining);
+                            _receiveBuffer.SetLength(0);
+                            _receiveBuffer.Write(tmp, 0, tmp.Length);
+                            bufferArray = _receiveBuffer.ToArray();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebSocket] Error processing message: {ex.Message}");
+            }
+        });
+
+        await _wsClient.Start();
+        System.Diagnostics.Debug.WriteLine($"[WebSocket] Connected to {uri}");
     }
 
-    public async Task CloseAsync(CancellationToken cancellationToken = default)
+    public Task CloseAsync(CancellationToken cancellationToken = default)
     {
-        if (_ws is not null)
+        if (_wsClient is not null)
         {
-            await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken).ConfigureAwait(false);
-            _ws.Dispose();
-            _ws = null;
+            _wsClient.Dispose();
+            _wsClient = null;
         }
+
+        return Task.CompletedTask;
     }
 
     private async Task<string> ReceiveStringAsync(CancellationToken cancellationToken)
     {
-        if (_ws is null) throw new InvalidOperationException("WebSocket not connected");
-        var buffer = new ArraySegment<byte>(new byte[8192]);
-        using var ms = new System.IO.MemoryStream();
+        if (_messageChannel == null)
+            throw new InvalidOperationException("WebSocket not connected. Call ConnectAsync first.");
+
+        // Use ConfigureAwait(false) to avoid capturing synchronization context
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(5000));
         
-        // Keep receiving until we have the complete message (header + payload)
-        while (true)
-        {
-            var result = await _ws.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
-            
-            System.Diagnostics.Debug.WriteLine(
-                $"[WebSocket] Received frame: Count={result.Count}, EndOfMessage={result.EndOfMessage}, " +
-                $"MessageType={result.MessageType}, TotalBuffered={ms.Length}");
-            
-            if (result.Count > 0)
-            {
-                ms.Write(buffer.Array!, buffer.Offset, result.Count);
-            }
-            
-            // Check if we have at least the header to read payload length
-            if (ms.Length >= 8)
-            {
-                var data = ms.ToArray();
-                uint payloadLength = BitConverter.ToUInt32(data, 4);
-                uint expectedTotalLength = 8 + payloadLength;
-                
-                System.Diagnostics.Debug.WriteLine(
-                    $"[WebSocket] Header parsed: payloadLength={payloadLength}, expectedTotal={expectedTotalLength}, " +
-                    $"currentLength={ms.Length}, EndOfMessage={result.EndOfMessage}");
-                
-                // Check if we have the complete message (header + payload)
-                if (ms.Length >= expectedTotalLength)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[WebSocket] Message complete, parsing...");
-                    return BinaryProtocolParser.ParseMessage(data);
-                }
-                
-                // If we still need more data but got EndOfMessage, continue anyway
-                // (server may send header in one frame, payload in another)
-                if (result.EndOfMessage && ms.Length < expectedTotalLength)
-                {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[WebSocket] EndOfMessage but incomplete. Got {ms.Length}, need {expectedTotalLength}. " +
-                        $"Continuing to receive...");
-                    // Continue loop to receive next frame(s)
-                    continue;
-                }
-            }
-            else if (result.Count == 0 && result.EndOfMessage)
-            {
-                // Empty frame with EndOfMessage after we have some data likely means transmission complete
-                if (ms.Length >= 8)
-                {
-                    var data = ms.ToArray();
-                    uint payloadLength = BitConverter.ToUInt32(data, 4);
-                    if (ms.Length >= 8 + payloadLength)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[WebSocket] Empty final frame, message complete.");
-                        return BinaryProtocolParser.ParseMessage(data);
-                    }
-                }
-                
-                // Empty frame with EndOfMessage but no complete data means connection closed
-                if (ms.Length == 0)
-                {
-                    throw new InvalidOperationException("WebSocket closed without receiving response (0 bytes).");
-                }
-                
-                throw new InvalidOperationException(
-                    $"WebSocket closed before receiving complete message. Got {ms.Length} bytes. " +
-                    $"First 8 bytes: {BitConverter.ToString(ms.ToArray(), 0, Math.Min(8, (int)ms.Length))}");
-            }
-        }
+        var result = await _messageChannel.Reader.ReadAsync(cts.Token).ConfigureAwait(false);
+        return result;
     }
 
-    private async Task SendStringAsync(string text, CancellationToken cancellationToken)
+    private Task SendStringAsync(string text, CancellationToken cancellationToken)
     {
-        if (_ws is null) throw new InvalidOperationException("WebSocket not connected");
-        var textData = Encoding.UTF8.GetBytes(text);
-        
-        // Build binary protocol message: [4 bytes: message type] [4 bytes: payload length] [payload]
-        using var ms = new System.IO.MemoryStream();
-        ms.Write(BitConverter.GetBytes(3u), 0, 4);  // Message type/flags (3 for command/text request)
-        ms.Write(BitConverter.GetBytes((uint)textData.Length), 0, 4);  // Payload length
-        ms.Write(textData, 0, textData.Length);  // Payload
-        
-        var binaryData = ms.ToArray();
-        await _ws.SendAsync(new ArraySegment<byte>(binaryData), WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
+        if (_wsClient is null) throw new InvalidOperationException("WebSocket not connected");
+
+        // Send as plain text message, not wrapped in binary frame with headers
+        // The Python version sends the command directly: await self.connection.send([command])
+        _wsClient.Send(text);
+        return Task.CompletedTask;
     }
 
     private async Task<LoxoneMessage> SendCommandAsync(string command, CancellationToken cancellationToken)
@@ -139,39 +161,18 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         {
             var response = await ReceiveStringAsync(cancellationToken).ConfigureAwait(false);
             System.Diagnostics.Debug.WriteLine($"[SendCommand] Response received: {response.Substring(0, Math.Min(100, response.Length))}...");
-            var jsonPayload = NormalizeJsonPayload(response);
-            using var doc = JsonDocument.Parse(jsonPayload);
-            return LoxoneMessageParser.Parse(doc);
+            
+            // Use the response parser to handle different response formats
+            var parser = new LoxoneResponseParser(_encryption);
+            var result = parser.Parse(response);
+            
+            return result;
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("closed without receiving"))
         {
             System.Diagnostics.Debug.WriteLine($"[SendCommand] WebSocket closed before receiving response: {ex.Message}");
-            // Server closed connection - return error message
             throw new InvalidOperationException($"Server closed WebSocket for command '{command}': {ex.Message}", ex);
         }
-    }
-
-    private static string NormalizeJsonPayload(string payload)
-    {
-        if (string.IsNullOrWhiteSpace(payload))
-        {
-            throw new JsonException("Loxone response was empty.");
-        }
-
-        // Trim leading/trailing whitespace and control characters
-        var startIndex = 0;
-        while (startIndex < payload.Length && (char.IsWhiteSpace(payload[startIndex]) || char.IsControl(payload[startIndex])))
-        {
-            startIndex++;
-        }
-
-        var endIndex = payload.Length - 1;
-        while (endIndex > startIndex && (char.IsWhiteSpace(payload[endIndex]) || char.IsControl(payload[endIndex])))
-        {
-            endIndex--;
-        }
-
-        return payload[startIndex..(endIndex + 1)];
     }
 
     public async Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default)
@@ -190,7 +191,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     /// </summary>
     public async Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default)
     {
-        if (_ws is null) throw new InvalidOperationException("WebSocket not connected");
+        if (_wsClient is null) throw new InvalidOperationException("WebSocket not connected");
         if (_encryption is null) throw new InvalidOperationException("Encryption not initialized; call PerformKeyExchangeAsync first");
 
         System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] Acquiring JWT for user={user}, permission={permission}");
@@ -214,8 +215,9 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         var getJwtCmd = $"jdev/sys/getjwt/{userHash}/{Uri.EscapeDataString(user)}/{permission}/{uid}/{encInfo}";
         
         // Encrypt and send the command
+        // Note: Don't URL-encode the encrypted command! Send it raw like the keyexchange.
         var encryptedCmd = _encryption.EncryptCommand(getJwtCmd);
-        var response = await SendCommandAsync($"jdev/sys/fenc/{Uri.EscapeDataString(encryptedCmd)}", cancellationToken).ConfigureAwait(false);
+        var response = await SendCommandAsync($"jdev/sys/fenc/{encryptedCmd}", cancellationToken).ConfigureAwait(false);
 
         // Parse the JWT response
         var val = response.Value;
@@ -232,26 +234,90 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     }
 
     /// <summary>
+    /// Prepares encryption by fetching the Miniserver certificate via HTTP.
+    /// This should be called BEFORE ConnectAsync to keep the post-connect auth window short.
+    /// Per Loxone documentation Step 2: Retrieve Certificate (before Step 3: Open WebSocket).
+    /// </summary>
+    public async Task PrepareEncryptionAsync(CancellationToken cancellationToken = default)
+    {
+        System.Diagnostics.Debug.WriteLine("[LoxoneWebSocketClient] Preparing encryption - fetching certificate from Miniserver...");
+        
+        try
+        {
+            _cachedCertificate = await _http.RequestTextAsync("jdev/sys/getcertificate", cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrEmpty(_cachedCertificate))
+            {
+                System.Diagnostics.Debug.WriteLine("[LoxoneWebSocketClient] Warning: Empty certificate returned from server");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] Certificate cached successfully, length={_cachedCertificate.Length}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoxoneWebSocketClient] Error preparing encryption: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Initializes encryption setup via keyexchange handshake.
     /// Must be called after WebSocket connection is established and before sending encrypted commands.
+    /// Requires PrepareEncryptionAsync to have been called first (certificate must be cached).
     /// </summary>
     public async Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default)
     {
-        if (_ws is null) throw new InvalidOperationException("WebSocket not connected");
+        if (_wsClient is null) throw new InvalidOperationException("WebSocket not connected");
         
-        _encryption = new LoxoneWebSocketEncryption(_http);
+        _encryption = new LoxoneWebSocketEncryption(_http, _cachedCertificate);
         
         // Use SendCommandAsync which returns the response
+        // During keyexchange, the response is NOT AES-encrypted, so we need a special handler
         Func<string, CancellationToken, Task<string?>> sendCommandAndReceive = async (cmd, ct) =>
         {
             try
             {
                 System.Diagnostics.Debug.WriteLine($"[Keyexchange] Sending keyexchange via SendCommandAsync: {cmd.Substring(0, Math.Min(80, cmd.Length))}...");
-                var msg = await SendCommandAsync(cmd, ct).ConfigureAwait(false);
-                // Convert LoxoneMessage back to JSON string for parsing
-                var rawText = msg.Value.GetRawText();
-                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Response received and parsed: {rawText.Substring(0, Math.Min(100, rawText.Length))}...");
-                return rawText;
+                
+                // For keyexchange, skip decryption since the response isn't AES-encrypted yet
+                var parser = new LoxoneResponseParser(_encryption);
+                parser.SetSkipDecryption(true);
+                
+                // Manually send and receive to use the parser with skip flag
+                await SendStringAsync(cmd, ct).ConfigureAwait(false);
+                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Command sent, waiting for response...");
+                var response = await ReceiveStringAsync(ct).ConfigureAwait(false);
+                System.Diagnostics.Debug.WriteLine($"[Keyexchange] Response received: {response.Substring(0, Math.Min(100, response.Length))}...");
+                
+                var msg = parser.Parse(response);
+                try
+                {
+                    // Check for errors first
+                    if (msg.Code < 200 || msg.Code >= 300)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Keyexchange] Server returned error code {msg.Code}: {msg.Message}");
+                        return null;
+                    }
+
+                    // Ensure document isn't disposed during async operations
+                    msg.KeepAlive();
+                    
+                    // Extract value - might be string (error) or object (success)
+                    if (msg.Value.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Keyexchange] Server response has no value");
+                        return null;
+                    }
+
+                    var rawText = msg.Value.GetRawText();
+                    System.Diagnostics.Debug.WriteLine($"[Keyexchange] Response received and parsed: {rawText.Substring(0, Math.Min(100, rawText.Length))}...");
+                    return rawText;
+                }
+                finally
+                {
+                    await msg.DisposeAsync().ConfigureAwait(false);
+                }
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("Server closed WebSocket"))
             {
@@ -269,7 +335,7 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
             }
         };
 
-        var success = await _encryption.PerformKeyExchangeAsync(sendCommandAndReceive, cancellationToken).ConfigureAwait(false);
+        var success = await _encryption.PerformKeyExchangeAsync(sendCommandAndReceive, _cachedCertificate, cancellationToken).ConfigureAwait(false);
         
         if (success)
         {
@@ -293,11 +359,17 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 
     public async Task ListenAsync(CancellationToken cancellationToken = default)
     {
+#if NET9_0_OR_GREATER
+        while (_wsClient is not null && _wsClient.IsRunning && !cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+        }
+#else
         while (_ws is not null && _ws.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
         {
-            var msg = await ReceiveStringAsync(cancellationToken).ConfigureAwait(false);
-            MessageReceived?.Invoke(this, msg);
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
+#endif
     }
 
     public async Task KeepAliveAsync(CancellationToken cancellationToken = default) => _ = await SendCommandAsync("keepalive", cancellationToken).ConfigureAwait(false);

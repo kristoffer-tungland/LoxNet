@@ -42,9 +42,10 @@ public static class BinaryProtocolParser
     /// <param name="data">Raw binary data received from WebSocket.</param>
     /// <param name="json">The extracted JSON payload, if successful.</param>
     /// <returns>True if parsing succeeded; false if the message is incomplete or malformed.</returns>
-    public static bool TryParseMessage(byte[] data, out string json)
+    public static bool TryParseMessage(byte[] data, out string json, out int totalMessageLength)
     {
         json = string.Empty;
+        totalMessageLength = 0;
 
         if (data == null || data.Length < HeaderSize)
             return false;
@@ -52,11 +53,13 @@ public static class BinaryProtocolParser
         try
         {
             uint payloadLength = BitConverter.ToUInt32(data, 4);
+            var required = HeaderSize + (int)payloadLength;
 
-            if (data.Length < HeaderSize + payloadLength)
+            if (data.Length < required)
                 return false;
 
             json = Encoding.UTF8.GetString(data, HeaderSize, (int)payloadLength);
+            totalMessageLength = required;
             return true;
         }
         catch

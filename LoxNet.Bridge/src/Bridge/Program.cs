@@ -1,3 +1,4 @@
+using LoxNet;
 using LoxNet.Bridge;
 using LoxNet.Bridge.Api;
 using LoxNet.Bridge.Config;
@@ -5,9 +6,10 @@ using LoxNet.Bridge.Logging;
 using LoxNet.Bridge.Loxone;
 using LoxNet.Bridge.Mqtt;
 using LoxNet.Bridge.Sync;
+using Microsoft.Extensions.Logging;
 
 var builder = Host.CreateApplicationBuilder(args);
-LoggingSetup.Configure(builder.Logging);
+LoggingSetup.Configure(builder.Logging, builder.Configuration);
 
 var configPath = ConfigLoader.ResolvePath(builder.Configuration, builder.Configuration["CONFIG"]);
 var bridgeConfig = await ConfigLoader.LoadAsync(builder.Configuration, configPath);
@@ -23,7 +25,14 @@ builder.Services.AddSingleton<LoxoneCommandBuilder>();
 builder.Services.AddSingleton<MqttService>();
 builder.Services.AddSingleton<IMqttClientHost>(sp => sp.GetRequiredService<MqttService>());
 builder.Services.AddSingleton<IMqttPublisher>(sp => new MqttPublisherAdapter(sp.GetRequiredService<IMqttClientHost>(), sp.GetRequiredService<Z2mPublisher>()));
-builder.Services.AddSingleton<LoxoneService>();
+builder.Services.AddSingleton<LoxoneService>(sp =>
+    new LoxoneService(
+        sp.GetRequiredService<ILogger<LoxoneService>>(),
+        sp.GetRequiredService<ILogger<LoxoneClient>>(),
+        sp.GetRequiredService<ILogger<LoxoneStructureState>>(),
+        sp.GetRequiredService<LoxoneStateParser>()
+    )
+);
 builder.Services.AddSingleton<ILoxoneCommandExecutor>(sp => sp.GetRequiredService<LoxoneService>());
 builder.Services.AddSingleton<SyncEngine>();
 builder.Services.AddHostedService<AppHost>();

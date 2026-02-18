@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using LoxNet;
+using Microsoft.Extensions.Logging;
 
 namespace LoxNet.Tests;
 
@@ -66,6 +67,7 @@ public class StructureCacheTests
         public event EventHandler<string>? MessageReceived;
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task PrepareEncryptionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> InitializeEncryptionAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public Task<TokenInfo> AcquireJwtTokenAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => Task.FromResult(new TokenInfo("jwt", 0, 0, false, "k"));
         public Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
@@ -94,7 +96,8 @@ public class StructureCacheTests
     [Fact]
     public async Task LoadAsync_ParsesStructure()
     {
-        var cache = new LoxoneStructureState(new MockHttpClient());
+        var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
+        var cache = new LoxoneStructureState(logger, new MockHttpClient());
         await cache.LoadAsync();
 
         Assert.True(cache.TryGetControl("uuid-1", out var ctrl));
@@ -146,8 +149,9 @@ public class StructureCacheTests
     [Fact]
     public async Task WebSocket_UpdatesState()
     {
+        var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
         var ws = new MockWebSocketClient();
-        var cache = new LoxoneStructureState(new MockHttpClient(), wsClient: ws);
+        var cache = new LoxoneStructureState(logger, new MockHttpClient(), wsClient: ws);
         await cache.LoadAsync();
 
         Assert.True(cache.TryGetControl("uuid-1", out var ctrl));

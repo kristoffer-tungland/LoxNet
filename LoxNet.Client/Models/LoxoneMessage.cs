@@ -12,8 +12,25 @@ using System.Text.Json;
 /// <see cref="JsonValueKind.Undefined"/>.
 /// </param>
 /// <param name="Message">Optional message provided by the server.</param>
-public record LoxoneMessage(int Code, JsonElement Value, string? Message)
+public class LoxoneMessage : IDisposable, IAsyncDisposable
 {
+    /// <summary>
+    /// Internal reference to keep the JsonDocument(s) alive while JsonElements reference them.
+    /// </summary>
+    private readonly JsonDocument? _valueDocument;
+
+    public int Code { get; }
+    public JsonElement Value { get; }
+    public string? Message { get; }
+
+    public LoxoneMessage(int code, JsonElement value, string? message, JsonDocument? valueDocument = null)
+    {
+        Code = code;
+        Value = value;
+        Message = message;
+        _valueDocument = valueDocument;
+    }
+
     /// <summary>
     /// Throws a <see cref="LoxoneApiException"/> if the message code is not
     /// within the HTTP success range (200-299).
@@ -24,5 +41,31 @@ public record LoxoneMessage(int Code, JsonElement Value, string? Message)
         {
             throw new LoxoneApiException(Code, Message);
         }
+    }
+
+    /// <summary>
+    /// Disposes the underlying JsonDocument if it exists.
+    /// </summary>
+    public void Dispose()
+    {
+        _valueDocument?.Dispose();
+    }
+
+    /// <summary>
+    /// Disposes the underlying JsonDocument if it exists asynchronously.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        _valueDocument?.Dispose();
+        await ValueTask.CompletedTask.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Keeps the underlying document alive (prevents GC collection).
+    /// Called automatically during async operations to ensure the document isn't disposed prematurely.
+    /// </summary>
+    internal void KeepAlive()
+    {
+        GC.KeepAlive(_valueDocument);
     }
 }
