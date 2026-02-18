@@ -158,7 +158,7 @@ public class LoxoneWebSocketEncryption
     /// 2. Ensure root matches stored Loxone Root Certificate
     /// 3. Extract public key from last certificate
     /// </summary>
-    private static string ExtractPublicKeyFromCertificate(string certificatePem)
+    private string ExtractPublicKeyFromCertificate(string certificatePem)
     {
         try
         {
@@ -225,7 +225,7 @@ public class LoxoneWebSocketEncryption
     /// <summary>
     /// Parses a certificate chain from PEM format into X509Certificate2 objects.
     /// </summary>
-    private static System.Collections.Generic.List<X509Certificate2> ParseCertificateChain(string certificatePem)
+    private System.Collections.Generic.List<X509Certificate2> ParseCertificateChain(string certificatePem)
     {
         var certs = new System.Collections.Generic.List<X509Certificate2>();
         var lines = certificatePem.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -272,7 +272,7 @@ public class LoxoneWebSocketEncryption
     /// <summary>
     /// Validates the certificate chain by verifying that each certificate is signed by the next one.
     /// </summary>
-    private static void ValidateCertificateChain(System.Collections.Generic.List<X509Certificate2> certChain)
+    private void ValidateCertificateChain(System.Collections.Generic.List<X509Certificate2> certChain)
     {
         _logger.LogDebug("[CertValidation] Validating certificate chain...");
         

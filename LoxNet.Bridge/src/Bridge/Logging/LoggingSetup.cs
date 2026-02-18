@@ -9,12 +9,12 @@ namespace LoxNet.Bridge.Logging;
 
 public static class LoggingSetup
 {
-    public static void Configure(ILoggingBuilder builder, IConfiguration configuration)
+    public static void Configure(ILoggingBuilder builder, IConfiguration configuration, LoggingSection? loggingSection = null)
     {
         builder.ClearProviders();
         
         // Parse log level from config, defaulting to Information
-        var loggingConfig = configuration.GetSection("logging").Get<LoggingSection>() ?? new LoggingSection();
+        var loggingConfig = loggingSection ?? configuration.GetSection("logging").Get<LoggingSection>() ?? new LoggingSection();
         var minimumLevel = ParseLogLevel(loggingConfig.MinLevel);
         
         // Configure Serilog

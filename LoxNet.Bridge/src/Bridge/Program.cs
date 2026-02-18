@@ -9,10 +9,10 @@ using LoxNet.Bridge.Sync;
 using Microsoft.Extensions.Logging;
 
 var builder = Host.CreateApplicationBuilder(args);
-LoggingSetup.Configure(builder.Logging, builder.Configuration);
 
 var configPath = ConfigLoader.ResolvePath(builder.Configuration, builder.Configuration["CONFIG"]);
 var bridgeConfig = await ConfigLoader.LoadAsync(builder.Configuration, configPath);
+LoggingSetup.Configure(builder.Logging, builder.Configuration, bridgeConfig.Logging);
 builder.Services.AddSingleton(bridgeConfig);
 builder.Services.AddSingleton(new ConfigFileSettings(configPath));
 builder.Services.AddSingleton<StateCache>();
@@ -39,5 +39,7 @@ builder.Services.AddHostedService<AppHost>();
 builder.Services.AddHostedService<MinimalApiHost>();
 
 var host = builder.Build();
+
+LoggingExtensions.SetLoggerFactory(host.Services.GetRequiredService<ILoggerFactory>());
 
 await host.RunAsync();

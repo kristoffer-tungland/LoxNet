@@ -6,8 +6,18 @@ namespace LoxNet;
 /// <summary>
 /// Provides extension methods for working with loggers.
 /// </summary>
-internal static class LoggingExtensions
+public static class LoggingExtensions
 {
+    private static ILoggerFactory? _loggerFactory;
+
+    /// <summary>
+    /// Sets the logger factory used to create child loggers.
+    /// </summary>
+    public static void SetLoggerFactory(ILoggerFactory loggerFactory)
+    {
+        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+    }
+
     /// <summary>
     /// Creates a new null logger for a different type.
     /// Used internally when loggers need to be created without access to the full factory.
@@ -15,6 +25,11 @@ internal static class LoggingExtensions
     /// </summary>
     internal static ILogger<T> CreateChildLogger<T>()
     {
+        if (_loggerFactory != null)
+        {
+            return _loggerFactory.CreateLogger<T>();
+        }
+
         return new NullLoggerProxy<T>();
     }
 
