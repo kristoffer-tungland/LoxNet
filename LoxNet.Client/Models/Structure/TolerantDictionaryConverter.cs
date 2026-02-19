@@ -51,7 +51,14 @@ internal class TolerantDictionaryConverter<TValue> : JsonConverter<Dictionary<st
             try
             {
                 reader.Read();
-                var value = JsonSerializer.Deserialize<TValue>(ref reader, options);
+                using var doc = JsonDocument.ParseValue(ref reader);
+                if (doc.RootElement.ValueKind == JsonValueKind.Null)
+                {
+                    TolerantDictionaryConverterLogger.Current?.LogWarning("[StructureLoad] Skipping {ValueType} with key '{Key}': value is null", valueName, key);
+                    continue;
+                }
+
+                var value = JsonSerializer.Deserialize<TValue>(doc.RootElement.GetRawText(), options);
                 if (value != null)
                 {
                     dictionary[key] = value;

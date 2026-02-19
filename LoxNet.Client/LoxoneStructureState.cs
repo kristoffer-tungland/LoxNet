@@ -295,7 +295,7 @@ public class LoxoneStructureState : ILoxoneStructureState
                         {
                             try
                             {
-                                _operatingModes[id] = kvp.Value.Name;
+                                _operatingModes[id] = kvp.Value;
                             }
                             catch (Exception ex)
                             {

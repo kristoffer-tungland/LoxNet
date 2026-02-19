@@ -9,10 +9,14 @@ namespace LoxNet;
 /// </summary>
 internal class StructureFileDto
 {
-    /// <summary>Dictionary of operating modes keyed by identifier.</summary>
+    /// <summary>Timestamp when the configuration was last modified.</summary>
+    [JsonPropertyName("lastModified")]
+    public string? LastModified { get; set; }
+
+    /// <summary>Dictionary of operating modes keyed by identifier (name stored as string value).</summary>
     [JsonPropertyName("operatingModes")]
-    [JsonConverter(typeof(TolerantDictionaryConverter<OperatingModeDto>))]
-    public Dictionary<string, OperatingModeDto>? OperatingModes { get; set; }
+    [JsonConverter(typeof(OperatingModesConverter))]
+    public Dictionary<string, string>? OperatingModes { get; set; }
 
     /// <summary>Dictionary of controls keyed by UUID.</summary>
     [JsonPropertyName("controls")]
@@ -59,7 +63,14 @@ internal class ControlDto
     [JsonPropertyName("securedDetails")]
     public bool? SecuredDetails { get; set; }
 
+    [JsonPropertyName("isFavorite")]
+    public bool? IsFavorite { get; set; }
+
+    [JsonPropertyName("defaultIcon")]
+    public string? DefaultIcon { get; set; }
+
     [JsonPropertyName("states")]
+    [JsonConverter(typeof(TolerantStringDictionaryConverter))]
     public Dictionary<string, string>? States { get; set; }
 
     [JsonPropertyName("details")]
@@ -89,27 +100,33 @@ internal record PresetDto(
     [property: JsonPropertyName("name")] string? Name);
 
 /// <summary>
-/// Model for an operating mode entry.
-/// </summary>
-internal class OperatingModeDto
-{
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
 /// Model for a room entry from the structure file.
 /// </summary>
 internal class RoomDto
 {
+    [JsonPropertyName("uuid")]
+    public string? Uuid { get; set; }
+
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("image")]
     public string? Image { get; set; }
 
+    [JsonPropertyName("type")]
+    public int? Type { get; set; }
+
+    [JsonPropertyName("color")]
+    public string? Color { get; set; }
+
+    [JsonPropertyName("isFavorite")]
+    public bool? IsFavorite { get; set; }
+
     [JsonPropertyName("defaultRating")]
     public int? DefaultRating { get; set; }
+
+    [JsonPropertyName("default")]
+    public bool? Default { get; set; }
 }
 
 /// <summary>
@@ -117,6 +134,9 @@ internal class RoomDto
 /// </summary>
 internal class CategoryDto
 {
+    [JsonPropertyName("uuid")]
+    public string? Uuid { get; set; }
+
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
@@ -125,4 +145,145 @@ internal class CategoryDto
 
     [JsonPropertyName("color")]
     public string? Color { get; set; }
+
+    [JsonPropertyName("image")]
+    public string? Image { get; set; }
+
+    [JsonPropertyName("defaultRating")]
+    public int? DefaultRating { get; set; }
+
+    [JsonPropertyName("isFavorite")]
+    public bool? IsFavorite { get; set; }
+
+    [JsonPropertyName("default")]
+    public bool? Default { get; set; }
+}
+
+internal sealed class OperatingModesConverter : JsonConverter<Dictionary<string, string>?>
+{
+    public override Dictionary<string, string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null)
+            return null;
+
+        if (reader.TokenType != JsonTokenType.StartObject)
+            throw new JsonException($"Expected StartObject, got {reader.TokenType}");
+
+        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndObject)
+                return dictionary;
+
+            if (reader.TokenType != JsonTokenType.PropertyName)
+                throw new JsonException($"Expected PropertyName, got {reader.TokenType}");
+
+            var key = reader.GetString();
+            if (key == null)
+            {
+                reader.Skip();
+                continue;
+            }
+
+            reader.Read();
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.String:
+                    dictionary[key] = reader.GetString() ?? string.Empty;
+                    break;
+                case JsonTokenType.StartObject:
+                {
+                    using var doc = JsonDocument.ParseValue(ref reader);
+                    if (doc.RootElement.TryGetProperty("name", out var nameProp) && nameProp.GetString() is { } name)
+                    {
+                        dictionary[key] = name;
+                    }
+                    break;
+                }
+                default:
+                    reader.Skip();
+                    break;
+            }
+        }
+
+        throw new JsonException("Unexpected end of JSON");
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dictionary<string, string>? value, JsonSerializerOptions options)
+    {
+        if (value == null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+        writer.WriteStartObject();
+
+        foreach (var kvp in value)
+        {
+            writer.WriteString(kvp.Key, kvp.Value);
+        }
+
+        writer.WriteEndObject();
+    }
+}
+
+internal sealed class TolerantStringDictionaryConverter : JsonConverter<Dictionary<string, string>?>
+{
+    public override Dictionary<string, string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null)
+            return null;
+
+        if (reader.TokenType != JsonTokenType.StartObject)
+            throw new JsonException($"Expected StartObject, got {reader.TokenType}");
+
+        var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndObject)
+                return dictionary;
+
+            if (reader.TokenType != JsonTokenType.PropertyName)
+                throw new JsonException($"Expected PropertyName, got {reader.TokenType}");
+
+            var key = reader.GetString();
+            if (key == null)
+            {
+                reader.Skip();
+                continue;
+            }
+
+            reader.Read();
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                dictionary[key] = reader.GetString() ?? string.Empty;
+            }
+            else
+            {
+                reader.Skip();
+            }
+        }
+
+        throw new JsonException("Unexpected end of JSON");
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dictionary<string, string>? value, JsonSerializerOptions options)
+    {
+        if (value == null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+
+        writer.WriteStartObject();
+
+        foreach (var kvp in value)
+        {
+            writer.WriteString(kvp.Key, kvp.Value);
+        }
+
+        writer.WriteEndObject();
+    }
 }

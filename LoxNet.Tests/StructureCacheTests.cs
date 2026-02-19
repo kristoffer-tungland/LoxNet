@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,10 +13,11 @@ public class StructureCacheTests
 {
     private const string SampleJson = """
 {
+  "lastModified": "2024-01-15 10:30:00",
   "operatingModes": {
-    "0": { "name": "Auto" },
-    "1": { "name": "Home" },
-    "2": { "name": "Away" }
+    "0": "Auto",
+    "1": "Home",
+    "2": "Away"
   },
   "controls": {
     "uuid-1": {
@@ -54,10 +56,10 @@ public class StructureCacheTests
 
   },
   "rooms": {
-    "room-1": { "name": "Kitchen", "image": "room.png", "defaultRating": 1 }
+    "room-1": { "uuid": "room-uuid-1", "name": "Kitchen", "image": "room.png", "type": 1, "color": "#FF0000", "isFavorite": true, "defaultRating": 1 }
   },
   "cats": {
-    "cat-1": { "name": "Lighting", "type": "lights", "color": "#0000ff" }
+    "cat-1": { "uuid": "cat-uuid-1", "name": "Lighting", "type": "lights", "color": "#0000ff", "image": "lights.svg", "defaultRating": 2, "isFavorite": false }
   }
 }
 """;
@@ -118,7 +120,9 @@ public class StructureCacheTests
     public async Task LoadAsync_ParsesStructure()
     {
         var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
-        var options = new LoxoneConnectionOptions("localhost");
+      var cachePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+      Directory.CreateDirectory(cachePath);
+      var options = new LoxoneConnectionOptions("localhost", StructureCachePath: cachePath);
         var cache = new LoxoneStructureState(logger, new MockHttpClient(), options);
         await cache.LoadAsync();
 
@@ -172,7 +176,9 @@ public class StructureCacheTests
     public async Task WebSocket_UpdatesState()
     {
         var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
-        var options = new LoxoneConnectionOptions("localhost");
+      var cachePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+      Directory.CreateDirectory(cachePath);
+      var options = new LoxoneConnectionOptions("localhost", StructureCachePath: cachePath);
         var ws = new MockWebSocketClient();
         var cache = new LoxoneStructureState(logger, new MockHttpClient(), options, wsClient: ws);
         await cache.LoadAsync();
@@ -188,4 +194,31 @@ public class StructureCacheTests
         Assert.Equal("1", changedValue);
         Assert.Equal("1", ctrl.StateValues["active"]);
     }
+
+      [Fact]
+      public async Task LoadAsync_WithRealLoxApp3Json_DoesNotThrow()
+      {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var jsonPath = Path.Combine(repoRoot, "LoxNet.Bridge", "data", "192.168.10.156_-LoxApp3.json");
+
+        Assert.True(File.Exists(jsonPath));
+
+        var json = File.ReadAllText(jsonPath);
+        var cachePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cachePath);
+
+        var options = new LoxoneConnectionOptions("192.168.10.156", StructureCachePath: cachePath);
+        var cacheFilename = "192.168.10.156_DDEEFF-LoxApp3.json";
+        var cacheJsonPath = Path.Combine(cachePath, cacheFilename);
+        await File.WriteAllTextAsync(cacheJsonPath, json);
+
+        var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
+        var cache = new LoxoneStructureState(logger, new MockHttpClient(), options);
+        await cache.LoadAsync(useCacheOnly: true);
+
+        Assert.NotEmpty(cache.Controls);
+        Assert.NotEmpty(cache.Rooms);
+        Assert.NotEmpty(cache.Categories);
+        Assert.NotEmpty(cache.GetOperatingModes());
+      }
 }
