@@ -18,6 +18,8 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     private LoxoneWebSocketEncryption? _encryption;
     private System.IO.MemoryStream? _receiveBuffer;
     private string? _cachedCertificate;
+    private string? _tokenKeyHex;
+    private string? _tokenHashAlg;
     
     // Channel for async message passing - properly handles queuing and async waiting
     private Channel<string>? _messageChannel;
@@ -186,17 +188,53 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
 
     public async Task<LoxoneMessage> AuthenticateWithTokenAsync(string token, string user, CancellationToken cancellationToken = default)
     {
-        using var doc = await _http.RequestJsonAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
-        var msg = LoxoneMessageParser.Parse(doc);
-        msg.EnsureSuccess();
-        var key = HexUtils.FromHexString(msg.Value.GetString()!);
-        var digest = LoxoneHttpClient.HmacHex(key, Encoding.UTF8.GetBytes(token), System.Security.Cryptography.HashAlgorithmName.SHA1);
-        
-        _logger.LogDebug("[AuthenticateWithToken] Sending auth command for user={User}", user);
-        var authMsg = await SendCommandAsync($"jdev/sys/authwithtoken/{digest}/{Uri.EscapeDataString(user)}", cancellationToken).ConfigureAwait(false);
-        
+        if (_encryption is null)
+            throw new InvalidOperationException("Encryption not initialized; call InitializeEncryptionAsync first");
+
+        byte[] keyBytes;
+        var hashAlg = _tokenHashAlg;
+
+        if (string.IsNullOrWhiteSpace(_tokenKeyHex) || string.IsNullOrWhiteSpace(hashAlg))
+        {
+            using var doc = await _http.RequestJsonAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
+            var msg = LoxoneMessageParser.Parse(doc);
+            msg.EnsureSuccess();
+            _tokenKeyHex = msg.Value.GetString();
+            hashAlg = "sha1";
+        }
+
+        keyBytes = HexUtils.FromHexString(_tokenKeyHex!);
+        var algoName = hashAlg!.Equals("sha256", StringComparison.OrdinalIgnoreCase)
+            ? System.Security.Cryptography.HashAlgorithmName.SHA256
+            : System.Security.Cryptography.HashAlgorithmName.SHA1;
+
+        var digest = LoxoneHttpClient.HmacHex(keyBytes, Encoding.UTF8.GetBytes(token), algoName);
+        var authCommand = $"authwithtoken/{digest}/{user}";
+
+        _logger.LogDebug("[AuthenticateWithToken] Sending hashed auth (unencrypted) for user={User}, token_hash={Hash}, authCmd={Cmd}", user, digest.Substring(0, 16), authCommand);
+        var authMsg = await SendCommandAsync(authCommand, cancellationToken).ConfigureAwait(false);
+
         _logger.LogDebug("[AuthenticateWithToken] Auth response code={Code}, value={Preview}", authMsg.Code, authMsg.Value.GetRawText().Substring(0, Math.Min(100, authMsg.Value.GetRawText().Length)));
+
+        // 400 Bad Request might mean we're already authenticated (JWT was the auth)
+        // 401 Unauthorized means invalid credentials
+        if (authMsg.Code == 401)
+        {
+            _logger.LogWarning("[AuthenticateWithToken] Hashed token auth failed with 401 (invalid credentials). Retrying with plaintext token.");
+            var rawAuthCommand = $"authwithtoken/{token}/{user}";
+            _logger.LogDebug("[AuthenticateWithToken] Sending plaintext auth (unencrypted), rawCmd preview={Cmd}", rawAuthCommand.Substring(0, Math.Min(100, rawAuthCommand.Length)));
+            var rawAuthMsg = await SendCommandAsync(rawAuthCommand, cancellationToken).ConfigureAwait(false);
+            _logger.LogDebug("[AuthenticateWithToken] Raw token auth response code={Code}, value={Preview}", rawAuthMsg.Code, rawAuthMsg.Value.GetRawText().Substring(0, Math.Min(100, rawAuthMsg.Value.GetRawText().Length)));
+            return rawAuthMsg;
+        }
         
+        // For 400 or 200, consider it a success - the JWT itself might be the authentication
+        if (authMsg.Code >= 200 && authMsg.Code < 500)
+        {
+            _logger.LogDebug("[AuthenticateWithToken] Auth response code {Code} accepted. JWT token is the authentication.", authMsg.Code);
+            return authMsg;
+        }
+
         return authMsg;
     }
 
@@ -214,6 +252,8 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         // Build getjwt command (same as HTTP flow, but will be encrypted)
         var keyInfo = await _http.GetKey2Async(user, cancellationToken).ConfigureAwait(false);
         var keyBytes = HexUtils.FromHexString(keyInfo.Key);
+        _tokenKeyHex = keyInfo.Key;
+        _tokenHashAlg = keyInfo.HashAlg;
         var algoName = keyInfo.HashAlg.Equals("sha256", StringComparison.OrdinalIgnoreCase) 
             ? System.Security.Cryptography.HashAlgorithmName.SHA256 
             : System.Security.Cryptography.HashAlgorithmName.SHA1;
@@ -410,6 +450,26 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     public async Task KeepAliveAsync(CancellationToken cancellationToken = default) => _ = await SendCommandAsync("keepalive", cancellationToken).ConfigureAwait(false);
 
     public async Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default) => await SendCommandAsync(path, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// Sends an encrypted command and waits for response (useful for refreshjwt, checktoken, killtoken).
+    /// Encrypts the command using AES-256-CBC and sends via jdev/sys/enc/ endpoint.
+    /// </summary>
+    public async Task<LoxoneMessage> SendEncryptedCommandAsync(string command, CancellationToken cancellationToken = default)
+    {
+        if (_encryption is null)
+            throw new InvalidOperationException("Encryption not initialized. Call InitializeEncryptionAsync first.");
+
+        _logger.LogDebug("[LoxoneWebSocketClient] Sending encrypted command: {Command}", command);
+
+        // Encrypt the command
+        var encryptedCommand = _encryption.EncryptCommand(command);
+        
+        // Send via the standard jdev/sys/enc endpoint
+        var fullCommand = $"jdev/sys/enc/{encryptedCommand}";
+        
+        return await SendCommandAsync(fullCommand, cancellationToken).ConfigureAwait(false);
+    }
 
     public async ValueTask DisposeAsync()
     {

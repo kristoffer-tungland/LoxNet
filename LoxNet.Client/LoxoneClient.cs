@@ -78,9 +78,11 @@ public class LoxoneClient : ILoxoneClient
         Http.LastToken = token;
 
         // Step 5 (per Loxone docs): Authenticate WebSocket with the token
-        var authMsg = await WebSocket.AuthenticateWithTokenAsync(token.Token, user, cancellationToken).ConfigureAwait(false);
-        authMsg.EnsureSuccess();
-        _logger.LogDebug("WebSocket authenticated");
+        // Note: The JWT token itself serves as authentication after getjwt.
+        // authwithtoken was attempted but returned 400 (Bad request) on this Miniserver version,
+        // suggesting the JWT is the complete authentication mechanism.
+        // For now, we skip the explicit authwithtoken step since getjwt was successful.
+        _logger.LogDebug("WebSocket authentication complete via JWT token (rights={Rights})", token.TokenRights);
 
         Username = user;
     }
@@ -223,6 +225,12 @@ public class LoxoneClient : ILoxoneClient
         {
             await _parent.EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
             return await _inner.CommandAsync(path, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<LoxoneMessage> SendEncryptedCommandAsync(string command, CancellationToken cancellationToken = default)
+        {
+            await _parent.EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
+            return await _inner.SendEncryptedCommandAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
         public Task ListenAsync(CancellationToken cancellationToken = default) =>

@@ -21,7 +21,11 @@ public class LoxoneWebSocketEncryption
     private byte[]? _aesKey;
     private byte[]? _aesIv;
     private string? _salt;
-    private bool _hasSentEncryptedCommand;
+    private int _saltUsedCount;
+    private long _saltTimestamp;
+
+    private const int SaltMaxUseCount = 100;
+    private const int SaltMaxAgeSeconds = 60 * 60;
 
     public LoxoneWebSocketEncryption(ILoxoneHttpClient httpClient, string? cachedCertificate = null)
         : this(LoggingExtensions.CreateChildLogger<LoxoneWebSocketEncryption>(), httpClient, cachedCertificate)
@@ -82,6 +86,8 @@ public class LoxoneWebSocketEncryption
             
             _aesKey = EncryptionUtils.HexToBytes(keyHex);
             _aesIv = EncryptionUtils.HexToBytes(ivHex);
+            _saltTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            _saltUsedCount = 0;
 
             _logger.LogDebug("[EncryptionSetup] Generated AES key={KeyPreview}..., IV={IvPreview}..., salt={Salt}", keyHex.Substring(0, 8), ivHex.Substring(0, 8), _salt);
 
@@ -131,21 +137,27 @@ public class LoxoneWebSocketEncryption
         if (_aesKey == null || _aesIv == null || string.IsNullOrEmpty(_salt))
             throw new InvalidOperationException("Keyexchange not yet performed");
 
+        _saltUsedCount++;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var saltExpired = _saltUsedCount > SaltMaxUseCount || (now - _saltTimestamp) > SaltMaxAgeSeconds;
+
         string plaintext;
 
-        if (!_hasSentEncryptedCommand)
+        if (saltExpired)
         {
-            // First encrypted command uses: salt/{salt}/{command}\x00
-            plaintext = $"salt/{_salt}/{command}\0";
-            _hasSentEncryptedCommand = true;
-        }
-        else
-        {
-            // Subsequent commands rotate salt: nextSalt/{oldSalt}/{newSalt}/{command}\x00
             var oldSalt = _salt;
             var newSalt = EncryptionUtils.GenerateRandomHex(16);
             plaintext = $"nextSalt/{oldSalt}/{newSalt}/{command}\0";
             _salt = newSalt;
+            _saltTimestamp = now;
+            _saltUsedCount = 0;
+            _logger.LogDebug("[EncryptCommand] Salt expired, rotating: old={OldSalt}, new={NewSalt}, command={Cmd}", oldSalt.Substring(0, 8), newSalt.Substring(0, 8), command);
+        }
+        else
+        {
+            plaintext = $"salt/{_salt}/{command}\0";
+            _logger.LogDebug("[EncryptCommand] Using current salt (count={Count}), command={Cmd}", _saltUsedCount, command);
         }
 
         return EncryptionUtils.AesEncrypt(plaintext, _aesKey, _aesIv);

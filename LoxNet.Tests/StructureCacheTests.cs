@@ -74,6 +74,7 @@ public class StructureCacheTests
         public Task<LoxoneMessage> ConnectAndAuthenticateAsync(string user, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
         public Task KeepAliveAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LoxoneMessage> CommandAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
+        public Task<LoxoneMessage> SendEncryptedCommandAsync(string command, CancellationToken cancellationToken = default) => Task.FromResult(new LoxoneMessage(200, default, null));
         public Task ListenAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

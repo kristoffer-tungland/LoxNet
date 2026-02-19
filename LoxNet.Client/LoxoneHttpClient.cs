@@ -200,7 +200,9 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         var key = HexUtils.FromHexString(keyMsg.Value.GetString()!);
 
         var tokenHash = HmacHex(key, Encoding.UTF8.GetBytes(current.Token), HashAlgorithmName.SHA1);
-        var msg = await wsClient.CommandAsync($"refreshjwt/{tokenHash}/{user}", cancellationToken).ConfigureAwait(false);
+        // Use encrypted command for refreshjwt (similar to getjwt)
+        // Miniserver versions 11.2+ also support plaintext token instead of hash
+        var msg = await wsClient.SendEncryptedCommandAsync($"refreshjwt/{tokenHash}/{user}", cancellationToken).ConfigureAwait(false);
         msg.EnsureSuccess();
         var val = msg.Value;
 
