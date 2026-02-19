@@ -16,6 +16,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     private readonly ILogger<LoxoneHttpClient> _logger;
     public LoxoneConnectionOptions Options { get; }
     public TokenInfo? LastToken { get; set; }
+    public string? Username { get; set; }
 
     public LoxoneHttpClient(ILogger<LoxoneHttpClient> logger, HttpClient httpClient, LoxoneConnectionOptions options)
     {
@@ -48,9 +49,63 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 
     private string BaseUrl => _http.BaseAddress?.ToString().TrimEnd('/') ?? $"{(Options.Secure ? "https" : "http")}://{Options.Host}:{Options.Port}";
 
-    public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Builds an authenticated path by appending token authentication query parameters.
+    /// Returns the original path if no token or username is available.
+    /// </summary>
+    private async Task<string> BuildAuthenticatedPathAsync(string path, CancellationToken cancellationToken)
+    {
+        if (LastToken is null || string.IsNullOrEmpty(Username))
+            return path;
+
+        // Get key for hashing the token
+        using var keyDoc = await RequestJsonInternalAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
+        var keyMsg = LoxoneMessageParser.Parse(keyDoc);
+        keyMsg.EnsureSuccess();
+        var key = HexUtils.FromHexString(keyMsg.Value.GetString()!);
+
+        // Hash the token
+        var tokenHash = HmacHex(key, Encoding.UTF8.GetBytes(LastToken.Token), HashAlgorithmName.SHA1);
+
+        // Append authentication parameters
+        var separator = path.Contains('?') ? '&' : '?';
+        return $"{path}{separator}autht={tokenHash}&user={Uri.EscapeDataString(Username)}";
+    }
+
+    /// <summary>
+    /// Internal method for unauthenticated JSON requests (e.g., getkey).
+    /// </summary>
+    private async Task<JsonDocument> RequestJsonInternalAsync(string path, CancellationToken cancellationToken = default)
     {
         using var resp = await _http.GetAsync($"{BaseUrl}/{path}", cancellationToken).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+        {
+            string content = string.Empty;
+            try
+            {
+#if NET48
+                content = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+#else
+                content = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+#endif
+            }
+            catch { }
+            _logger.LogError("HTTP {StatusCode} for path '{Path}': {Content}", resp.StatusCode, path, content);
+            resp.EnsureSuccessStatusCode();
+        }
+#if NET48
+        var stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#else
+        var stream = await resp.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#endif
+        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
+    {
+        // Build authenticated path if token is available
+        var authenticatedPath = await BuildAuthenticatedPathAsync(path, cancellationToken).ConfigureAwait(false);
+        using var resp = await _http.GetAsync($"{BaseUrl}/{authenticatedPath}", cancellationToken).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
         {
             string content = string.Empty;
@@ -79,7 +134,9 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     /// </summary>
     public async Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default)
     {
-        using var resp = await _http.GetAsync($"{BaseUrl}/{path}", cancellationToken).ConfigureAwait(false);
+        // Build authenticated path if token is available
+        var authenticatedPath = await BuildAuthenticatedPathAsync(path, cancellationToken).ConfigureAwait(false);
+        using var resp = await _http.GetAsync($"{BaseUrl}/{authenticatedPath}", cancellationToken).ConfigureAwait(false);
         resp.EnsureSuccessStatusCode();
 #if NET48
         return await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -90,7 +147,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 
     public async Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default)
     {
-        using var doc = await RequestJsonAsync($"jdev/sys/getkey2/{Uri.EscapeDataString(user)}", cancellationToken).ConfigureAwait(false);
+        using var doc = await RequestJsonInternalAsync($"jdev/sys/getkey2/{Uri.EscapeDataString(user)}", cancellationToken).ConfigureAwait(false);
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
         var value = msg.Value;
@@ -137,7 +194,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
         var path = $"jdev/sys/getjwt/{userHash}/{Uri.EscapeDataString(user)}/{permission}/{uid}/{encInfo}";
         var url = $"{BaseUrl}/{path}";
         _logger.LogDebug("Requesting JWT URL: {Url}", url);
-        using var doc = await RequestJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        using var doc = await RequestJsonInternalAsync(path, cancellationToken).ConfigureAwait(false);
         var msg = LoxoneMessageParser.Parse(doc);
         msg.EnsureSuccess();
         var val = msg.Value;
@@ -194,7 +251,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 
         var current = LastToken ?? throw new InvalidOperationException("No JWT token available");
 
-        using var keyDoc = await RequestJsonAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
+        using var keyDoc = await RequestJsonInternalAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
         var keyMsg = LoxoneMessageParser.Parse(keyDoc);
         keyMsg.EnsureSuccess();
         var key = HexUtils.FromHexString(keyMsg.Value.GetString()!);

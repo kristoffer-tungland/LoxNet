@@ -76,6 +76,7 @@ public class LoxoneClient : ILoxoneClient
 
         // Store token in HTTP client for later use
         Http.LastToken = token;
+        _httpClient.Username = user;
 
         // Step 5 (per Loxone docs): Authenticate WebSocket with the token
         // Note: The JWT token itself serves as authentication after getjwt.
@@ -142,6 +143,11 @@ public class LoxoneClient : ILoxoneClient
         { 
             get => _inner.LastToken;
             set => _inner.LastToken = value;
+        }
+        public string? Username
+        {
+            get => _inner.Username;
+            set => _inner.Username = value;
         }
 
         public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)

@@ -86,6 +86,7 @@ public class StructureCacheTests
         private readonly JsonDocument _doc = JsonDocument.Parse(SampleJson);
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
         public TokenInfo? LastToken { get; set; }
+        public string? Username { get; set; }
         public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(_doc);
         public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("");
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new NotImplementedException();

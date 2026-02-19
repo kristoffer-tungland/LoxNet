@@ -15,6 +15,7 @@ public class UserServiceTests
         public List<string> Paths { get; } = new();
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
         public TokenInfo? LastToken { get; set; }
+        public string? Username { get; set; }
 
         private const string ListJson = "{\"LL\":{\"Code\":200,\"value\":[{\"name\":\"admin\",\"uuid\":\"1\",\"isAdmin\":true,\"userState\":0}]}}";
         private const string UserJson = "{\"LL\":{\"Code\":200,\"value\":{\"name\":\"admin\",\"uuid\":\"1\",\"userid\":\"123\",\"isAdmin\":true,\"userState\":0}}}";

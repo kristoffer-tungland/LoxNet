@@ -9,6 +9,7 @@ public interface ILoxoneHttpClient : IAsyncDisposable
 {
     LoxoneConnectionOptions Options { get; }
     TokenInfo? LastToken { get; set; }
+    string? Username { get; set; }
     Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default);
     Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default);
     Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default);

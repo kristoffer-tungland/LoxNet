@@ -14,6 +14,7 @@ public class LoxoneClientTokenTests
     {
         public int RefreshCalls { get; private set; }
         public TokenInfo? LastToken { get; set; }
+        public string? Username { get; set; }
         public TokenInfo RefreshResult = new("new", 0, 0, false, "k");
         public TokenInfo LoginResult = new("login", 0, 0, false, "k");
 

@@ -14,8 +14,7 @@ public class OperatingModeServiceTests
     {
         public List<string> Paths { get; } = new();
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
-        public TokenInfo? LastToken { get; set; }
-
+        public TokenInfo? LastToken { get; set; }        public string? Username { get; set; }
         private const string EntriesJson = "{\"LL\": { \"Code\": 200, \"value\": [ { \"uuid\": \"1\", \"name\": \"Entry\", \"operatingMode\": \"Party\", \"calMode\": 0, \"calModeAttr\": \"1/1\" } ] } }";
         private const string OkJson = "{\"LL\": { \"Code\": 200 } }";
         private const string HeatJson = "{\"LL\": { \"Code\": 200, \"value\": \"10-15/04-15\" } }";
