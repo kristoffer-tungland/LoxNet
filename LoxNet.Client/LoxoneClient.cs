@@ -96,7 +96,7 @@ public class LoxoneClient : ILoxoneClient
         if (token is null)
             return;
 
-        var expiry = DateTimeOffset.FromUnixTimeSeconds(token.ValidUntil);
+        var expiry = token.GetExpiryDate();
         if (expiry - DateTimeOffset.UtcNow > _refreshWindow)
             return;
 
@@ -107,7 +107,7 @@ public class LoxoneClient : ILoxoneClient
             if (token is null)
                 return;
 
-            expiry = DateTimeOffset.FromUnixTimeSeconds(token.ValidUntil);
+            expiry = token.GetExpiryDate();
             if (expiry - DateTimeOffset.UtcNow <= _refreshWindow)
             {
                 var user = Username ?? throw new InvalidOperationException("Client is not logged in");
