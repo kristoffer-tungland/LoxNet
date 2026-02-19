@@ -11,18 +11,22 @@ internal class StructureFileDto
 {
     /// <summary>Dictionary of operating modes keyed by identifier.</summary>
     [JsonPropertyName("operatingModes")]
+    [JsonConverter(typeof(TolerantDictionaryConverter<OperatingModeDto>))]
     public Dictionary<string, OperatingModeDto>? OperatingModes { get; set; }
 
     /// <summary>Dictionary of controls keyed by UUID.</summary>
     [JsonPropertyName("controls")]
+    [JsonConverter(typeof(TolerantDictionaryConverter<ControlDto>))]
     public Dictionary<string, ControlDto>? Controls { get; set; }
 
     /// <summary>Dictionary of rooms keyed by identifier.</summary>
     [JsonPropertyName("rooms")]
+    [JsonConverter(typeof(TolerantDictionaryConverter<RoomDto>))]
     public Dictionary<string, RoomDto>? Rooms { get; set; }
 
     /// <summary>Dictionary of categories keyed by identifier.</summary>
     [JsonPropertyName("cats")]
+    [JsonConverter(typeof(TolerantDictionaryConverter<CategoryDto>))]
     public Dictionary<string, CategoryDto>? Categories { get; set; }
 }
 

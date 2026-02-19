@@ -19,7 +19,9 @@ public interface ILoxoneStructureState
     IReadOnlyDictionary<string, LoxoneCategory> Categories { get; }
 
     /// <summary>Downloads and parses the <c>LoxApp3.json</c> structure file.</summary>
-    Task LoadAsync(CancellationToken cancellationToken = default);
+    /// <param name="useCacheOnly">When <c>true</c>, load only from cache without fetching from server.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task LoadAsync(bool useCacheOnly = false, CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves a control by its UUID.</summary>
     bool TryGetControl(string uuid, out LoxoneControl? control);

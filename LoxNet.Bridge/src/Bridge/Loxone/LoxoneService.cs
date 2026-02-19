@@ -30,10 +30,11 @@ public class LoxoneService : ILoxoneCommandExecutor
     public async Task StartAsync(BridgeConfig config, Func<string, NormalizedLightState, CancellationToken, Task> callback, CancellationToken cancellationToken)
     {
         _callback = callback;
-        _client = new LoxoneClient(_loxoneClientLogger, new LoxoneConnectionOptions(config.Loxone.Host, config.Loxone.Port, config.Loxone.UseHttps));
+        var options = new LoxoneConnectionOptions(config.Loxone.Host, config.Loxone.Port, config.Loxone.UseHttps);
+        _client = new LoxoneClient(_loxoneClientLogger, options);
         await _client.LoginAsync(config.Loxone.User, config.Loxone.Password, cancellationToken: cancellationToken).ConfigureAwait(false);
-        _structure = new LoxoneStructureState(_structureLogger, _client.Http, wsClient: _client.WebSocket);
-        await _structure.LoadAsync(cancellationToken).ConfigureAwait(false);
+        _structure = new LoxoneStructureState(_structureLogger, _client.Http, options, wsClient: _client.WebSocket);
+        await _structure.LoadAsync(useCacheOnly: false, cancellationToken).ConfigureAwait(false);
         await SubscribeToMappingsAsync(config, cancellationToken).ConfigureAwait(false);
         _ = Task.Run(() => _client.WebSocket.ListenAsync(cancellationToken), cancellationToken);
         await _client.WebSocket.CommandAsync("jdev/sps/enablebinstatusupdate", cancellationToken).ConfigureAwait(false);

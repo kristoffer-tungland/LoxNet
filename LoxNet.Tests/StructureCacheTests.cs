@@ -83,11 +83,30 @@ public class StructureCacheTests
 
     private class MockHttpClient : ILoxoneHttpClient
     {
-        private readonly JsonDocument _doc = JsonDocument.Parse(SampleJson);
         public LoxoneConnectionOptions Options => new("localhost", 0, false);
         public TokenInfo? LastToken { get; set; }
         public string? Username { get; set; }
-        public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(_doc);
+        
+        public Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
+        {
+            // Return a fresh document each time (not reusing the same disposed instance)
+            if (path == "data/LoxApp3.json")
+            {
+                return Task.FromResult(JsonDocument.Parse(SampleJson));
+            }
+            else if (path == "jdev/cfg/apiKey")
+            {
+                var keyJson = """{"LL":{"value":{"macAddress":"AA:BB:CC:DD:EE:FF"}}}""";
+                return Task.FromResult(JsonDocument.Parse(keyJson));
+            }
+            else if (path == "jdev/sps/LoxAPPversion3")
+            {
+                var versionJson = """{"LL":{"value":"230901120000"}}""";
+                return Task.FromResult(JsonDocument.Parse(versionJson));
+            }
+            return Task.FromResult(JsonDocument.Parse("{}"));
+        }
+        
         public Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("");
         public Task<KeyInfo> GetKey2Async(string user, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<TokenInfo> GetJwtAsync(string user, string password, int permission, string info, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -99,7 +118,8 @@ public class StructureCacheTests
     public async Task LoadAsync_ParsesStructure()
     {
         var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
-        var cache = new LoxoneStructureState(logger, new MockHttpClient());
+        var options = new LoxoneConnectionOptions("localhost");
+        var cache = new LoxoneStructureState(logger, new MockHttpClient(), options);
         await cache.LoadAsync();
 
         Assert.True(cache.TryGetControl("uuid-1", out var ctrl));
@@ -152,8 +172,9 @@ public class StructureCacheTests
     public async Task WebSocket_UpdatesState()
     {
         var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<LoxoneStructureState>();
+        var options = new LoxoneConnectionOptions("localhost");
         var ws = new MockWebSocketClient();
-        var cache = new LoxoneStructureState(logger, new MockHttpClient(), wsClient: ws);
+        var cache = new LoxoneStructureState(logger, new MockHttpClient(), options, wsClient: ws);
         await cache.LoadAsync();
 
         Assert.True(cache.TryGetControl("uuid-1", out var ctrl));
