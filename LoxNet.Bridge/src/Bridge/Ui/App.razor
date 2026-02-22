@@ -1,23 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LoxNet Bridge Config</title>
-    <link rel="stylesheet" href="app.css" />
+    <base href="/" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["Bridge.styles.css"]" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <HeadOutlet />
 </head>
+
 <body>
-    <Router AppAssembly="@typeof(App).Assembly">
-        <Found Context="routeData">
-            <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layouts.MainLayout)" />
-        </Found>
-        <NotFound>
-            <LayoutView Layout="@typeof(Layouts.MainLayout)">
-                <p>Sorry, there's nothing at this address.</p>
-            </LayoutView>
-        </NotFound>
-    </Router>
-    <script src="_framework/blazor.web.js"></script>
+    <Routes />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
+
 </html>

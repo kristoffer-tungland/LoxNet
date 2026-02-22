@@ -1,0 +1,1111 @@
+@page "/"
+@using LoxNet.Bridge.Ui.Components
+@using LoxNet.Bridge.Ui.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject ConnectionStatusService ConnectionStatus
+@implements IDisposable
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px;">
+    @* Health Status Section *@
+    <FluentCard>
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+            <FluentLabel Typo="Typography.H4">Connection Status</FluentLabel>
+            
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="20">
+                @* Loxone Status *@
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentBadge Appearance="@(ConnectionStatus.IsLoxoneConnected ? Appearance.Accent : Appearance.Neutral)">
+                        Miniserver: @(ConnectionStatus.IsLoxoneConnected ? "Connected" : "Disconnected")
+                    </FluentBadge>
+                    @if (!ConnectionStatus.IsLoxoneConnected && !string.IsNullOrWhiteSpace(_model.Loxone.Host))
+                    {
+                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
+                            Retry
+                        </FluentButton>
+                    }
+                </FluentStack>
+
+                @* MQTT Status *@
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentBadge Appearance="@(ConnectionStatus.IsMqttConnected ? Appearance.Accent : Appearance.Neutral)">
+                        MQTT: @(ConnectionStatus.IsMqttConnected ? "Connected" : "Disconnected")
+                    </FluentBadge>
+                    @if (!ConnectionStatus.IsMqttConnected && !string.IsNullOrWhiteSpace(_model.Mqtt.Host))
+                    {
+                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectMqttAsync" Disabled="@_isConnecting">
+                            Retry
+                        </FluentButton>
+                    }
+                </FluentStack>
+            </FluentStack>
+        </FluentStack>
+    </FluentCard>
+
+    @if (_isLoading)
+    {
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" VerticalGap="12">
+                <FluentProgressRing />
+                <FluentLabel>Loading configuration…</FluentLabel>
+            </FluentStack>
+        </FluentCard>
+    }
+    else
+    {
+        @* Message Bar for errors/success *@
+        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+        {
+            <FluentMessageBar Intent="@MessageIntent.Success">@_statusMessage</FluentMessageBar>
+        }
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <FluentMessageBar Intent="@MessageIntent.Error">@_errorMessage</FluentMessageBar>
+        }
+
+        @* Loxone Connection Section *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">Miniserver Connection</FluentLabel>
+                
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_model.Loxone.Host" Label="Host" Required Style="min-width: 200px;" />
+                    <FluentTextField @bind-Value="_model.Loxone.Port" Label="Port" Required Style="width: 120px;" />
+                    <FluentTextField @bind-Value="_model.Loxone.User" Label="User" Required Style="min-width: 150px;" />
+                    <FluentTextField @bind-Value="_model.Loxone.Password" Label="Password" TextFieldType="TextFieldType.Password" Required Style="min-width: 150px;" />
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                    <FluentCheckbox @bind-Value="_model.Loxone.UseHttps" Label="Use HTTPS" />
+                    <FluentCheckbox @bind-Value="_model.Loxone.RefreshLoxapp3OnStart" Label="Refresh LoxApp3 on Start" />
+                </FluentStack>
+
+                <FluentTextField @bind-Value="_model.Loxone.Loxapp3Path" Label="LoxApp3 Path (Optional)" Placeholder="/path/to/LoxApp3.json" />
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
+                    @if (_isConnecting)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Test & Connect
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+
+        @* MQTT Connection Section *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">MQTT Broker</FluentLabel>
+                
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_model.Mqtt.Host" Label="Host" Required Style="min-width: 200px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.Port" Label="Port" Required Style="width: 120px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.Username" Label="Username (Optional)" Style="min-width: 150px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.Password" Label="Password (Optional)" TextFieldType="TextFieldType.Password" Style="min-width: 150px;" />
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                    <FluentTextField @bind-Value="_model.Mqtt.ClientId" Label="Client ID" Style="min-width: 200px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.BaseTopic" Label="Base Topic" Placeholder="zigbee2mqtt" Style="min-width: 200px;" />
+                </FluentStack>
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="ConnectMqttAsync" Disabled="@_isConnecting">
+                    @if (_isConnecting)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Test & Connect
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+
+        @* Mappings Section *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.SpaceBetween" VerticalAlignment="VerticalAlignment.Center">
+                    <FluentLabel Typo="Typography.H4">Device Mappings</FluentLabel>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="ShowAddMappingWizard">
+                        Add Mapping
+                    </FluentButton>
+                </FluentStack>
+
+                @if (_model.Mappings.Count == 0)
+                {
+                    <FluentMessageBar Intent="@MessageIntent.Info">
+                        No mappings configured yet. Add a mapping to sync a Loxone sub-control with a Zigbee light device.
+                    </FluentMessageBar>
+                }
+                else
+                {
+                    @foreach (var mapping in _model.Mappings)
+                    {
+                        <FluentCard Style="border: 1px solid var(--neutral-stroke-rest); padding: 12px;">
+                            <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.SpaceBetween" VerticalAlignment="VerticalAlignment.Center">
+                                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                                    <FluentLabel Typo="Typography.Body" Weight="FontWeight.Semibold">@mapping.Name</FluentLabel>
+                                    <FluentLabel Typo="Typography.Body">Loxone: @mapping.LoxoneUuidAction</FluentLabel>
+                                    <FluentLabel Typo="Typography.Body">MQTT: @mapping.MqttTopic</FluentLabel>
+                                </FluentStack>
+                                <FluentButton Appearance="Appearance.Lightweight" OnClick="@(() => RemoveMapping(mapping))">
+                                    Remove
+                                </FluentButton>
+                            </FluentStack>
+                        </FluentCard>
+                    }
+                }
+            </FluentStack>
+        </FluentCard>
+
+        @* Mapping Wizard (shown conditionally) *@
+        @if (_showMappingWizard)
+        {
+            <MappingWizard Model="@_currentMapping"
+                           LoxoneSubcontrols="@_loxoneSubcontrols"
+                           MqttLights="@_mqttLights"
+                           IsEditing="@_isEditingMapping"
+                           OnSave="SaveMappingAsync"
+                           OnCancel="HideMappingWizard" />
+        }
+
+        @* Save Configuration Button *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                <FluentButton Appearance="Appearance.Accent" OnClick="SaveConfigAsync" Disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Save Configuration
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+    }
+</FluentStack>
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20">
+    @* Health Status Section *@
+    <FluentCard>
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+            <FluentLabel Typo="Typography.H4">Connection Status</FluentLabel>
+            
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="20">
+                @* Loxone Status *@
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentIcon Value="@(ConnectionStatus.IsLoxoneConnected ? new Icons.Regular.Size24.CheckmarkCircle() : new Icons.Regular.Size24.DismissCircle())"
+                                Color="@(ConnectionStatus.IsLoxoneConnected ? Color.Success : Color.Error)" />
+                    <FluentBadge Appearance="@(ConnectionStatus.IsLoxoneConnected ? Appearance.Accent : Appearance.Neutral)"
+                                 BackgroundColor="@(ConnectionStatus.IsLoxoneConnected ? "var(--success)" : "var(--neutral-fill-rest)")">
+                        Miniserver: @(ConnectionStatus.IsLoxoneConnected ? "Connected" : "Disconnected")
+                    </FluentBadge>
+                    @if (!ConnectionStatus.IsLoxoneConnected && !string.IsNullOrWhiteSpace(_model.Loxone.Host))
+                    {
+                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
+                            Retry Connection
+                        </FluentButton>
+                    }
+                </FluentStack>
+
+                @* MQTT Status *@
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentIcon Value="@(ConnectionStatus.IsMqttConnected ? new Icons.Regular.Size24.CheckmarkCircle() : new Icons.Regular.Size24.DismissCircle())"
+                                Color="@(ConnectionStatus.IsMqttConnected ? Color.Success : Color.Error)" />
+                    <FluentBadge Appearance="@(ConnectionStatus.IsMqttConnected ? Appearance.Accent : Appearance.Neutral)"
+                                 BackgroundColor="@(ConnectionStatus.IsMqttConnected ? "var(--success)" : "var(--neutral-fill-rest)")">
+                        MQTT: @(ConnectionStatus.IsMqttConnected ? "Connected" : "Disconnected")
+                    </FluentBadge>
+                    @if (!ConnectionStatus.IsMqttConnected && !string.IsNullOrWhiteSpace(_model.Mqtt.Host))
+                    {
+                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectMqttAsync" Disabled="@_isConnecting">
+                            Retry Connection
+                        </FluentButton>
+                    }
+                </FluentStack>
+            </FluentStack>
+        </FluentStack>
+    </FluentCard>
+
+    @if (_isLoading)
+    {
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" VerticalGap="12">
+                <FluentProgressRing />
+                <FluentLabel>Loading configuration…</FluentLabel>
+            </FluentStack>
+        </FluentCard>
+    }
+    else
+    {
+        @* Loxone Connection Section *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">Miniserver Connection</FluentLabel>
+                
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_model.Loxone.Host" Label="Host" Required Style="min-width: 200px;" />
+                    <FluentNumberField @bind-Value="_model.Loxone.Port" Label="Port" Min="1" Max="65535" Style="width: 120px;" />
+                    <FluentTextField @bind-Value="_model.Loxone.User" Label="User" Required Style="min-width: 150px;" />
+                    <FluentTextField @bind-Value="_model.Loxone.Password" Label="Password" Type="@TextFieldType.Password" Required Style="min-width: 150px;" />
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                    <FluentCheckbox @bind-Value="_model.Loxone.UseHttps" Label="Use HTTPS" />
+                    <FluentCheckbox @bind-Value="_model.Loxone.RefreshLoxapp3OnStart" Label="Refresh LoxApp3 on Start" />
+                </FluentStack>
+
+                <FluentTextField @bind-Value="_model.Loxone.Loxapp3Path" Label="LoxApp3 Path (Optional)" Placeholder="/path/to/LoxApp3.json" />
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
+                    @if (_isConnecting)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Test & Connect
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+
+        @* MQTT Connection Section *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">MQTT Broker</FluentLabel>
+                
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_model.Mqtt.Host" Label="Host" Required Style="min-width: 200px;" />
+                    <FluentNumberField @bind-Value="_model.Mqtt.Port" Label="Port" Min="1" Max="65535" Style="width: 120px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.Username" Label="Username (Optional)" Style="min-width: 150px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.Password" Label="Password (Optional)" Type="@TextFieldType.Password" Style="min-width: 150px;" />
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                    <FluentTextField @bind-Value="_model.Mqtt.ClientId" Label="Client ID" Style="min-width: 200px;" />
+                    <FluentTextField @bind-Value="_model.Mqtt.BaseTopic" Label="Base Topic" Placeholder="zigbee2mqtt" Style="min-width: 200px;" />
+                </FluentStack>
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="ConnectMqttAsync" Disabled="@_isConnecting">
+                    @if (_isConnecting)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Test & Connect
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+
+        @* Mappings Section *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.SpaceBetween" VerticalAlignment="VerticalAlignment.Center">
+                    <FluentLabel Typo="Typography.H4">Device Mappings</FluentLabel>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="ShowAddMappingWizard" IconStart="@(new Icons.Regular.Size20.Add())">
+                        Add Mapping
+                    </FluentButton>
+                </FluentStack>
+
+                @if (_model.Mappings.Count == 0)
+                {
+                    <FluentMessageBar Intent="@MessageIntent.Info">
+                        No mappings configured yet. Add a mapping to sync a Loxone sub-control with a Zigbee light device.
+                    </FluentMessageBar>
+                }
+                else
+                {
+                    <FluentDataGrid Items="@_model.Mappings.AsQueryable()" GridTemplateColumns="1fr 1fr 1fr auto auto" Style="width: 100%;">
+                        <PropertyColumn Property="@(m => m.Name)" Title="Name" Sortable="true" />
+                        <TemplateColumn Title="Loxone Device">
+                            <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+                                <FluentLabel Typo="Typography.Body">@context.LoxoneUuidAction</FluentLabel>
+                                <FluentLabel Typo="Typography.Caption">@context.Kind</FluentLabel>
+                            </FluentStack>
+                        </TemplateColumn>
+                        <PropertyColumn Property="@(m => m.MqttTopic)" Title="MQTT Topic" Sortable="true" />
+                        <TemplateColumn Title="Status">
+                            @{
+                                var status = GetMappingStatus(context);
+                            }
+                            <FluentBadge Appearance="@(status == "ok" ? Appearance.Accent : Appearance.Neutral)"
+                                         BackgroundColor="@(status == "ok" ? "var(--success)" : "var(--warning)")">
+                                @status
+                            </FluentBadge>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Actions">
+                            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4">
+                                <FluentButton Appearance="Appearance.Lightweight" 
+                                              IconStart="@(new Icons.Regular.Size20.Delete())"
+                                              OnClick="@(() => RemoveMapping(context))">
+                                </FluentButton>
+                            </FluentStack>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                }
+            </FluentStack>
+        </FluentCard>
+
+        @* Mapping Wizard (shown conditionally) *@
+        @if (_showMappingWizard)
+        {
+            <MappingWizard Model="@_currentMapping"
+                           LoxoneSubcontrols="@_loxoneSubcontrols"
+                           MqttLights="@_mqttLights"
+                           IsEditing="@_isEditingMapping"
+                           OnSave="SaveMappingAsync"
+                           OnCancel="HideMappingWizard" />
+        }
+
+        @* Save Configuration Button *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                <FluentButton Appearance="Appearance.Accent" OnClick="SaveConfigAsync" Disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Save Configuration
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+    }
+</FluentStack>
+
+@code {
+    private ConfigEditorModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isConnecting;
+    private bool _showMappingWizard;
+    private bool _isEditingMapping;
+    private string? _statusMessage;
+    private string? _errorMessage;
+    private MappingEditorModel _currentMapping = new();
+    private List<LoxoneSubcontrolOption> _loxoneSubcontrols = new();
+    private List<MqttLightOption> _mqttLights = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionStatus.StartMonitoring();
+        ConnectionStatus.ConnectionStatusChanged += OnConnectionStatusChanged;
+        await LoadConfigAsync().ConfigureAwait(false);
+        await LoadDeviceListsAsync().ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        ConnectionStatus.StopMonitoring();
+        ConnectionStatus.ConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+
+    private void OnConnectionStatusChanged(object? sender, EventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadConfigAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var response = await client.GetAsync("config").ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var dto = System.Text.Json.JsonSerializer.Deserialize<BridgeConfigDto>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (dto is not null)
+                {
+                    _model = MapToEditor(dto);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load configuration: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadDeviceListsAsync()
+    {
+        var client = CreateClient();
+        
+        try
+        {
+            var loxoneResponse = await client.GetFromJsonAsync<List<LoxoneSubcontrolOption>>("/api/loxone/subcontrols").ConfigureAwait(false);
+            if (loxoneResponse is not null)
+            {
+                _loxoneSubcontrols = loxoneResponse;
+            }
+        }
+        catch
+        {
+            // Silently fail - devices may not be available yet
+        }
+
+        try
+        {
+            var mqttResponse = await client.GetFromJsonAsync<MqttLightsDiscoveryResult>("/api/mqtt/lights").ConfigureAwait(false);
+            if (mqttResponse?.Lights is not null)
+            {
+                _mqttLights = mqttResponse.Lights.Select(d => new MqttLightOption
+                {
+                    FriendlyName = d.FriendlyName,
+                    Topic = d.Topic,
+                    Model = d.Model
+                }).ToList();
+            }
+        }
+        catch
+        {
+            // Silently fail - devices may not be available yet
+        }
+    }
+
+    private async Task ConnectLoxoneAsync()
+    {
+        _isConnecting = true;
+        _errorMessage = null;
+        _statusMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var response = await client.PostAsJsonAsync("/api/loxone/connect", new LoxoneSectionDto
+            {
+                Host = _model.Loxone.Host,
+                Port = _model.Loxone.Port,
+                UseHttps = _model.Loxone.UseHttps,
+                User = _model.Loxone.User,
+                Password = _model.Loxone.Password,
+                Loxapp3Path = _model.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = _model.Loxone.RefreshLoxapp3OnStart
+            }).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _statusMessage = "Successfully connected to Miniserver";
+                await LoadDeviceListsAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var error = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                _errorMessage = error?.TryGetValue("error", out var msg) == true ? msg : "Connection failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Connection error: {ex.Message}";
+        }
+        finally
+        {
+            _isConnecting = false;
+        }
+    }
+
+    private async Task ConnectMqttAsync()
+    {
+        _isConnecting = true;
+        _errorMessage = null;
+        _statusMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var response = await client.PostAsJsonAsync("/api/mqtt/connect", new MqttSectionDto
+            {
+                Host = _model.Mqtt.Host,
+                Port = _model.Mqtt.Port,
+                Username = _model.Mqtt.Username,
+                Password = _model.Mqtt.Password,
+                ClientId = _model.Mqtt.ClientId,
+                BaseTopic = _model.Mqtt.BaseTopic
+            }).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _statusMessage = "Successfully connected to MQTT broker";
+                await LoadDeviceListsAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var error = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                _errorMessage = error?.TryGetValue("error", out var msg) == true ? msg : "Connection failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Connection error: {ex.Message}";
+        }
+        finally
+        {
+            _isConnecting = false;
+        }
+    }
+
+    private async Task SaveConfigAsync()
+    {
+        _isSaving = true;
+        _errorMessage = null;
+        _statusMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var payload = MapToDto(_model);
+            var response = await client.PostAsJsonAsync("config", payload).ConfigureAwait(false);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var result = System.Text.Json.JsonSerializer.Deserialize<ConfigSaveResult>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                _statusMessage = result?.Message ?? "Configuration saved successfully";
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var error = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                _errorMessage = error?.TryGetValue("error", out var msg) == true ? msg : "Failed to save configuration";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save configuration: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void ShowAddMappingWizard()
+    {
+        _currentMapping = new MappingEditorModel { Kind = "Dimmer" };
+        _isEditingMapping = false;
+        _showMappingWizard = true;
+    }
+
+    private void HideMappingWizard()
+    {
+        _showMappingWizard = false;
+        _currentMapping = new MappingEditorModel();
+    }
+
+    private Task SaveMappingAsync(MappingEditorModel mapping)
+    {
+        if (_isEditingMapping)
+        {
+            var index = _model.Mappings.FindIndex(m => m == _currentMapping);
+            if (index >= 0)
+            {
+                _model.Mappings[index] = mapping;
+            }
+        }
+        else
+        {
+            _model.Mappings.Add(mapping);
+        }
+
+        HideMappingWizard();
+        _statusMessage = $"Mapping '{mapping.Name}' has been added";
+        return Task.CompletedTask;
+    }
+
+    private void RemoveMapping(MappingEditorModel mapping)
+    {
+        _model.Mappings.Remove(mapping);
+        _statusMessage = $"Mapping removed";
+    }
+
+    private HttpClient CreateClient()
+    {
+        var client = HttpClientFactory.CreateClient();
+        client.BaseAddress = new Uri(Navigation.BaseUri);
+        return client;
+    }
+
+    private static ConfigEditorModel MapToEditor(BridgeConfigDto dto)
+    {
+        return new ConfigEditorModel
+        {
+            Loxone = new LoxoneEditorModel
+            {
+                Host = dto.Loxone.Host,
+                Port = dto.Loxone.Port,
+                UseHttps = dto.Loxone.UseHttps,
+                User = dto.Loxone.User,
+                Password = dto.Loxone.Password,
+                Loxapp3Path = dto.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = dto.Loxone.RefreshLoxapp3OnStart
+            },
+            Mqtt = new MqttEditorModel
+            {
+                Host = dto.Mqtt.Host,
+                Port = dto.Mqtt.Port,
+                Username = dto.Mqtt.Username,
+                Password = dto.Mqtt.Password,
+                ClientId = dto.Mqtt.ClientId,
+                BaseTopic = dto.Mqtt.BaseTopic
+            },
+            Mappings = dto.Mappings
+                .Select(m => new MappingEditorModel
+                {
+                    Name = m.Name,
+                    Kind = m.Kind,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction,
+                    Options = new MappingOptionsEditorModel
+                    {
+                        PreferMqttState = m.Options.PreferMqttState,
+                        AllowColor = m.Options.AllowColor
+                    }
+                })
+                .ToList()
+        };
+    }
+
+    private static BridgeConfigDto MapToDto(ConfigEditorModel model)
+    {
+        return new BridgeConfigDto
+        {
+            Loxone = new LoxoneSectionDto
+            {
+                Host = model.Loxone.Host,
+                Port = model.Loxone.Port,
+                UseHttps = model.Loxone.UseHttps,
+                User = model.Loxone.User,
+                Password = model.Loxone.Password,
+                Loxapp3Path = model.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = model.Loxone.RefreshLoxapp3OnStart
+            },
+            Mqtt = new MqttSectionDto
+            {
+                Host = model.Mqtt.Host,
+                Port = model.Mqtt.Port,
+                Username = model.Mqtt.Username,
+                Password = model.Mqtt.Password,
+                ClientId = model.Mqtt.ClientId,
+                BaseTopic = model.Mqtt.BaseTopic
+            },
+            Mappings = model.Mappings
+                .Select(m => new MappingSectionDto
+                {
+                    Name = m.Name,
+                    Kind = m.Kind,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction,
+                    Options = new MappingOptionsDto
+                    {
+                        PreferMqttState = m.Options.PreferMqttState,
+                        AllowColor = m.Options.AllowColor
+                    }
+                })
+                .ToArray()
+        };
+    }
+}
+    private ConfigEditorModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isConnecting;
+    private bool _showMappingWizard;
+    private bool _isEditingMapping;
+    private MappingEditorModel _currentMapping = new();
+    private List<LoxoneSubcontrolOption> _loxoneSubcontrols = new();
+    private List<MqttLightOption> _mqttLights = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionStatus.StartMonitoring();
+        ConnectionStatus.ConnectionStatusChanged += OnConnectionStatusChanged;
+        await LoadConfigAsync().ConfigureAwait(false);
+        await LoadDeviceListsAsync().ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        ConnectionStatus.StopMonitoring();
+        ConnectionStatus.ConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+
+    private void OnConnectionStatusChanged(object? sender, EventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadConfigAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var client = CreateClient();
+            var dto = await client.GetFromJsonAsync<BridgeConfigDto>("config").ConfigureAwait(false);
+            if (dto is not null)
+            {
+                _model = MapToEditor(dto);
+            }
+        }
+        catch (Exception ex)
+        {
+            await ToastService.ShowToastAsync(new ToastParameters<string>
+            {
+                Intent = ToastIntent.Error,
+                Title = "Failed to load configuration",
+                Content = ex.Message,
+                Timeout = 5000
+            });
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadDeviceListsAsync()
+    {
+        var client = CreateClient();
+        
+        try
+        {
+            var response = await client.GetAsync("/api/loxone/subcontrols").ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                _loxoneSubcontrols = System.Text.Json.JsonSerializer.Deserialize<List<LoxoneSubcontrolOption>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+            }
+        }
+        catch
+        {
+            // Silently fail
+        }
+
+        try
+        {
+            var response = await client.GetAsync("/api/mqtt/lights").ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var mqttResponse = System.Text.Json.JsonSerializer.Deserialize<MqttLightsDiscoveryResult>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (mqttResponse?.Lights is not null)
+                {
+                    _mqttLights = mqttResponse.Lights.Select(d => new MqttLightOption
+                    {
+                        FriendlyName = d.FriendlyName,
+                        Topic = d.Topic,
+                        Model = d.Model
+                    }).ToList();
+                }
+            }
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
+    private async Task ConnectLoxoneAsync()
+    {
+        _isConnecting = true;
+        try
+        {
+            var client = CreateClient();
+            var response = await client.PostAsJsonAsync("/api/loxone/connect", new LoxoneSectionDto
+            {
+                Host = _model.Loxone.Host,
+                Port = _model.Loxone.Port,
+                UseHttps = _model.Loxone.UseHttps,
+                User = _model.Loxone.User,
+                Password = _model.Loxone.Password,
+                Loxapp3Path = _model.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = _model.Loxone.RefreshLoxapp3OnStart
+            }).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await ToastService.ShowToastAsync(new ToastParameters<string>
+                {
+                    Intent = ToastIntent.Success,
+                    Title = "Loxone Connected",
+                    Content = "Successfully connected to Miniserver",
+                    Timeout = 3000
+                });
+                
+                // Reload device lists
+                await LoadDeviceListsAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>().ConfigureAwait(false);
+                var errorMessage = error?.TryGetValue("error", out var msg) == true ? msg : "Connection failed";
+                
+                await ToastService.ShowToastAsync(new ToastParameters<string>
+                {
+                    Intent = ToastIntent.Error,
+                    Title = "Connection Failed",
+                    Content = errorMessage,
+                    Timeout = 5000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await ToastService.ShowToastAsync(new ToastParameters<string>
+            {
+                Intent = ToastIntent.Error,
+                Title = "Connection Error",
+                Content = ex.Message,
+                Timeout = 5000
+            });
+        }
+        finally
+        {
+            _isConnecting = false;
+        }
+    }
+
+    private async Task ConnectMqttAsync()
+    {
+        _isConnecting = true;
+        try
+        {
+            var client = CreateClient();
+            var response = await client.PostAsJsonAsync("/api/mqtt/connect", new MqttSectionDto
+            {
+                Host = _model.Mqtt.Host,
+                Port = _model.Mqtt.Port,
+                Username = _model.Mqtt.Username,
+                Password = _model.Mqtt.Password,
+                ClientId = _model.Mqtt.ClientId,
+                BaseTopic = _model.Mqtt.BaseTopic
+            }).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await ToastService.ShowToastAsync(new ToastParameters<string>
+                {
+                    Intent = ToastIntent.Success,
+                    Title = "MQTT Connected",
+                    Content = "Successfully connected to MQTT broker",
+                    Timeout = 3000
+                });
+                
+                // Reload device lists
+                await LoadDeviceListsAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>().ConfigureAwait(false);
+                var errorMessage = error?.TryGetValue("error", out var msg) == true ? msg : "Connection failed";
+                
+                await ToastService.ShowToastAsync(new ToastParameters<string>
+                {
+                    Intent = ToastIntent.Error,
+                    Title = "Connection Failed",
+                    Content = errorMessage,
+                    Timeout = 5000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await ToastService.ShowToastAsync(new ToastParameters<string>
+            {
+                Intent = ToastIntent.Error,
+                Title = "Connection Error",
+                Content = ex.Message,
+                Timeout = 5000
+            });
+        }
+        finally
+        {
+            _isConnecting = false;
+        }
+    }
+
+    private async Task SaveConfigAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            var client = CreateClient();
+            var payload = MapToDto(_model);
+            var response = await client.PostAsJsonAsync("config", payload).ConfigureAwait(false);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ConfigSaveResult>().ConfigureAwait(false);
+                
+                await ToastService.ShowToastAsync(new ToastParameters<string>
+                {
+                    Intent = ToastIntent.Success,
+                    Title = "Configuration Saved",
+                    Content = result?.Message ?? "Configuration saved successfully",
+                    Timeout = 3000
+                });
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>().ConfigureAwait(false);
+                var errorMessage = error?.TryGetValue("error", out var msg) == true ? msg : "Failed to save configuration";
+                
+                await ToastService.ShowToastAsync(new ToastParameters<string>
+                {
+                    Intent = ToastIntent.Error,
+                    Title = "Save Failed",
+                    Content = errorMessage,
+                    Timeout = 5000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await ToastService.ShowToastAsync(new ToastParameters<string>
+            {
+                Intent = ToastIntent.Error,
+                Title = "Error",
+                Content = $"Failed to save configuration: {ex.Message}",
+                Timeout = 5000
+            });
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void ShowAddMappingWizard()
+    {
+        _currentMapping = new MappingEditorModel { Kind = "Dimmer" };
+        _isEditingMapping = false;
+        _showMappingWizard = true;
+    }
+
+    private void HideMappingWizard()
+    {
+        _showMappingWizard = false;
+        _currentMapping = new MappingEditorModel();
+    }
+
+    private async Task SaveMappingAsync(MappingEditorModel mapping)
+    {
+        if (_isEditingMapping)
+        {
+            var index = _model.Mappings.FindIndex(m => m == _currentMapping);
+            if (index >= 0)
+            {
+                _model.Mappings[index] = mapping;
+            }
+        }
+        else
+        {
+            _model.Mappings.Add(mapping);
+        }
+
+        HideMappingWizard();
+        
+        await ToastService.ShowToastAsync(new ToastParameters<string>
+        {
+            Intent = ToastIntent.Success,
+            Title = "Mapping Added",
+            Content = $"Mapping '{mapping.Name}' has been added",
+            Timeout = 3000
+        });
+    }
+
+    private void RemoveMapping(MappingEditorModel mapping)
+    {
+        _model.Mappings.Remove(mapping);
+    }
+
+    private string GetMappingStatus(MappingEditorModel mapping)
+    {
+        // This is a placeholder - in a real implementation, we'd check against the health endpoint
+        return "ok";
+    }
+
+    private HttpClient CreateClient()
+    {
+        var client = HttpClientFactory.CreateClient();
+        client.BaseAddress = new Uri(Navigation.BaseUri);
+        return client;
+    }
+
+    private static ConfigEditorModel MapToEditor(BridgeConfigDto dto)
+    {
+        return new ConfigEditorModel
+        {
+            Loxone = new LoxoneEditorModel
+            {
+                Host = dto.Loxone.Host,
+                Port = dto.Loxone.Port,
+                UseHttps = dto.Loxone.UseHttps,
+                User = dto.Loxone.User,
+                Password = dto.Loxone.Password,
+                Loxapp3Path = dto.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = dto.Loxone.RefreshLoxapp3OnStart
+            },
+            Mqtt = new MqttEditorModel
+            {
+                Host = dto.Mqtt.Host,
+                Port = dto.Mqtt.Port,
+                Username = dto.Mqtt.Username,
+                Password = dto.Mqtt.Password,
+                ClientId = dto.Mqtt.ClientId,
+                BaseTopic = dto.Mqtt.BaseTopic
+            },
+            Mappings = dto.Mappings
+                .Select(m => new MappingEditorModel
+                {
+                    Name = m.Name,
+                    Kind = m.Kind,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction,
+                    Options = new MappingOptionsEditorModel
+                    {
+                        PreferMqttState = m.Options.PreferMqttState,
+                        AllowColor = m.Options.AllowColor
+                    }
+                })
+                .ToList()
+        };
+    }
+
+    private static BridgeConfigDto MapToDto(ConfigEditorModel model)
+    {
+        return new BridgeConfigDto
+        {
+            Loxone = new LoxoneSectionDto
+            {
+                Host = model.Loxone.Host,
+                Port = model.Loxone.Port,
+                UseHttps = model.Loxone.UseHttps,
+                User = model.Loxone.User,
+                Password = model.Loxone.Password,
+                Loxapp3Path = model.Loxone.Loxapp3Path,
+                RefreshLoxapp3OnStart = model.Loxone.RefreshLoxapp3OnStart
+            },
+            Mqtt = new MqttSectionDto
+            {
+                Host = model.Mqtt.Host,
+                Port = model.Mqtt.Port,
+                Username = model.Mqtt.Username,
+                Password = model.Mqtt.Password,
+                ClientId = model.Mqtt.ClientId,
+                BaseTopic = model.Mqtt.BaseTopic
+            },
+            Mappings = model.Mappings
+                .Select(m => new MappingSectionDto
+                {
+                    Name = m.Name,
+                    Kind = m.Kind,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction,
+                    Options = new MappingOptionsDto
+                    {
+                        PreferMqttState = m.Options.PreferMqttState,
+                        AllowColor = m.Options.AllowColor
+                    }
+                })
+                .ToArray()
+        };
+    }
+}

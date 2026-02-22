@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using LoxNet;
 using LoxNet.Bridge.Ui;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.FluentUI.AspNetCore.Components;
+using LoxNet.Bridge.Ui.Services;
 
 namespace LoxNet.Bridge.Api;
 
@@ -18,14 +20,16 @@ public class MinimalApiHost : IHostedService
     private readonly ConfigFileSettings _configFileSettings;
     private readonly MqttService _mqttService;
     private readonly LoxoneService _loxoneService;
+    private readonly ConnectionStatusService _connectionStatusService;
     private IHost? _webHost;
 
-    public MinimalApiHost(BridgeConfig config, ConfigFileSettings configFileSettings, MqttService mqttService, LoxoneService loxoneService)
+    public MinimalApiHost(BridgeConfig config, ConfigFileSettings configFileSettings, MqttService mqttService, LoxoneService loxoneService, ConnectionStatusService connectionStatusService)
     {
         _config = config;
         _configFileSettings = configFileSettings;
         _mqttService = mqttService;
         _loxoneService = loxoneService;
+        _connectionStatusService = connectionStatusService;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -33,7 +37,9 @@ public class MinimalApiHost : IHostedService
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             ApplicationName = typeof(MinimalApiHost).Assembly.FullName,
-            Args = Array.Empty<string>()
+            Args = Array.Empty<string>(),
+            EnvironmentName = Environments.Production,
+            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
         });
 
         builder.Logging.ClearProviders();
@@ -41,20 +47,35 @@ public class MinimalApiHost : IHostedService
 
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
-        builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("Default", client =>
+        {
+            client.BaseAddress = new Uri("http://localhost:5000");
+        });
+        
+        // Register Fluent UI services
+        builder.Services.AddFluentUIComponents();
+        
+        // Share parent services with web app
+        builder.Services.AddSingleton(_connectionStatusService);
 
         var app = builder.Build();
 
+        // Enable static files from wwwroot
         app.UseStaticFiles();
+        
+        // Map Razor components - this should register _content routes
+        app.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode();
+        
         app.UseAntiforgery();
 
         app.MapGet("/health", () => BuildHealth());
-        app.MapGet("/discover/loxone/subcontrols", () => DiscoverLoxoneSubcontrols());
-        app.MapGet("/discover/mqtt/devices", () => new { devices = Array.Empty<string>(), hint = "Subscribe to zigbee2mqtt/bridge/devices for details" });
+        app.MapGet("/api/loxone/subcontrols", () => DiscoverLoxoneSubcontrols());
+        app.MapGet("/api/mqtt/lights", () => DiscoverMqttLights());
+        app.MapPost("/api/loxone/connect", async (LoxoneSectionDto payload, CancellationToken ct) => await ConnectLoxoneAsync(payload, ct).ConfigureAwait(false));
+        app.MapPost("/api/mqtt/connect", async (MqttSectionDto payload, CancellationToken ct) => await ConnectMqttAsync(payload, ct).ConfigureAwait(false));
         app.MapGet("/config", () => Results.Ok(BridgeConfigMapper.ToDto(_config)));
         app.MapPost("/config", async (BridgeConfigDto payload) => await SaveConfigAsync(payload).ConfigureAwait(false));
-        app.MapRazorComponents<App>()
-            .AddInteractiveServerRenderMode();
 
         _webHost = app;
         await app.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -126,6 +147,84 @@ public class MinimalApiHost : IHostedService
                 uuidAction = c.UuidAction ?? c.Uuid
             })
             .DistinctBy(c => c.uuidAction);
+    }
+
+    private object DiscoverMqttLights()
+    {
+        // TODO: Implement actual MQTT device discovery by subscribing to zigbee2mqtt/bridge/devices
+        // Filter for devices with type=light or supported features containing brightness/color
+        // For now, return empty list with hint
+        var result = new MqttLightsDiscoveryResult
+        {
+            Lights = Array.Empty<MqttDeviceDto>()
+        };
+        
+        return Results.Ok(result);
+    }
+
+    private async Task<IResult> ConnectLoxoneAsync(LoxoneSectionDto payload, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Stop existing connection if any
+            await _loxoneService.StopAsync(cancellationToken).ConfigureAwait(false);
+
+            // Create temporary config with new credentials
+            var tempConfig = new BridgeConfig
+            {
+                Loxone = new LoxoneSection
+                {
+                    Host = payload.Host,
+                    Port = payload.Port,
+                    UseHttps = payload.UseHttps,
+                    User = payload.User,
+                    Password = payload.Password,
+                    Loxapp3Path = payload.Loxapp3Path,
+                    RefreshLoxapp3OnStart = payload.RefreshLoxapp3OnStart
+                }
+            };
+
+            // Start connection with empty callback (no sync)
+            await _loxoneService.StartAsync(tempConfig, (_, _, _) => Task.CompletedTask, cancellationToken).ConfigureAwait(false);
+
+            return Results.Ok(new { message = "Loxone connection established successfully" });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = $"Failed to connect to Loxone: {ex.Message}" });
+        }
+    }
+
+    private async Task<IResult> ConnectMqttAsync(MqttSectionDto payload, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Stop existing connection if any
+            await _mqttService.StopAsync(cancellationToken).ConfigureAwait(false);
+
+            // Create temporary config with new credentials
+            var tempConfig = new BridgeConfig
+            {
+                Mqtt = new MqttSection
+                {
+                    Host = payload.Host,
+                    Port = payload.Port,
+                    Username = payload.Username,
+                    Password = payload.Password,
+                    ClientId = payload.ClientId,
+                    BaseTopic = payload.BaseTopic
+                }
+            };
+
+            // Start connection with empty callback (no sync)
+            await _mqttService.StartAsync(tempConfig, (_, _, _) => Task.CompletedTask, cancellationToken).ConfigureAwait(false);
+
+            return Results.Ok(new { message = "MQTT connection established successfully" });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = $"Failed to connect to MQTT: {ex.Message}" });
+        }
     }
 
     private static bool MatchesKind(ControlType type, string kind)

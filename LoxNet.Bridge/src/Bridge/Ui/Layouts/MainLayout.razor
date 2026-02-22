@@ -1,11 +1,19 @@
 @inherits LayoutComponentBase
 
-<div class="page">
-    <header class="top-bar">
-        <div class="top-bar__title">LoxNet Bridge Configuration</div>
-        <div class="top-bar__subtitle">Miniserver, MQTT, and bridge mappings</div>
-    </header>
-    <main class="content">
-        @Body
-    </main>
-</div>
+<FluentDesignSystemProvider>
+    <FluentDialogProvider />
+    <FluentToastProvider MaxToastCount="10" Position="ToastPosition.TopRight" />
+    <FluentMessageBarProvider />
+
+    <FluentLayout>
+        <FluentHeader>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                <FluentLabel Typo="Typography.H3">LoxNet Bridge Configuration</FluentLabel>
+                <FluentLabel Typo="Typography.Body">Miniserver, MQTT, and bridge mappings</FluentLabel>
+            </FluentStack>
+        </FluentHeader>
+        <FluentBodyContent>
+            @Body
+        </FluentBodyContent>
+    </FluentLayout>
+</FluentDesignSystemProvider>

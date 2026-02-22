@@ -1,0 +1,147 @@
+@using LoxNet.Bridge.Ui.Models
+
+<FluentCard Style="margin-top: 16px;">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentLabel Typo="Typography.H5">@(IsEditing ? "Edit Mapping" : "Add New Mapping")</FluentLabel>
+
+        <FluentTextField @bind-Value="@Model.Name" Label="Mapping Name" Required Placeholder="e.g., Kitchen Lights" />
+
+        <FluentSelect TOption="string"
+                      Items="@_kindOptions"
+                      @bind-SelectedOption="@Model.Kind"
+                      Label="Device Type"
+                      Required>
+            <OptionTemplate>@context</OptionTemplate>
+        </FluentSelect>
+
+        <FluentSelect TOption="LoxoneSubcontrolOption"
+                      Items="@LoxoneSubcontrols"
+                      @bind-SelectedOption="@_selectedLoxoneSubcontrol"
+                      OptionText="@(item => $"{item.ParentName} - {item.SubcontrolName}")"
+                      OptionValue="@(item => item.UuidAction)"
+                      Label="Loxone Sub-Control"
+                      Required
+                      Placeholder="Select a Loxone sub-control">
+            <OptionTemplate>
+                <div>
+                    <strong>@context.SubcontrolName</strong>
+                    <br />
+                    <small>@context.ParentName (@context.Type)</small>
+                </div>
+            </OptionTemplate>
+        </FluentSelect>
+
+        <FluentSelect TOption="MqttLightOption"
+                      Items="@MqttLights"
+                      @bind-SelectedOption="@_selectedMqttLight"
+                      OptionText="@(item => item.FriendlyName)"
+                      OptionValue="@(item => item.Topic)"
+                      Label="MQTT Light Device"
+                      Required
+                      Placeholder="Select an MQTT light device">
+            <OptionTemplate>
+                <div>
+                    <strong>@context.FriendlyName</strong>
+                    <br />
+                    <small>@context.Model</small>
+                </div>
+            </OptionTemplate>
+        </FluentSelect>
+
+        <FluentDivider />
+
+        <FluentLabel Typo="Typography.Body" Style="font-weight: 600">Options</FluentLabel>
+
+        <FluentSwitch @bind-Value="@Model.Options.PreferMqttState"
+                      Label="Prefer MQTT State"
+                      CheckedMessage="Enabled"
+                      UncheckedMessage="Disabled" />
+
+        <FluentSwitch @bind-Value="@Model.Options.AllowColor"
+                      Label="Allow Color Control"
+                      CheckedMessage="Enabled"
+                      UncheckedMessage="Disabled"
+                      Disabled="@(Model.Kind != "ColorPickerV2")" />
+
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8">
+            <FluentButton Appearance="Appearance.Accent"
+                          OnClick="HandleSave"
+                          Disabled="@(!IsValid)">
+                @(IsEditing ? "Update" : "Add") Mapping
+            </FluentButton>
+            <FluentButton Appearance="Appearance.Neutral"
+                          OnClick="HandleCancel">
+                Cancel
+            </FluentButton>
+        </FluentStack>
+    </FluentStack>
+</FluentCard>
+
+@code {
+    private readonly string[] _kindOptions = new[] { "Dimmer", "ColorPickerV2" };
+    private LoxoneSubcontrolOption? _selectedLoxoneSubcontrol;
+    private MqttLightOption? _selectedMqttLight;
+
+    [Parameter]
+    public MappingEditorModel Model { get; set; } = new();
+
+    [Parameter]
+    public IEnumerable<LoxoneSubcontrolOption> LoxoneSubcontrols { get; set; } = Array.Empty<LoxoneSubcontrolOption>();
+
+    [Parameter]
+    public IEnumerable<MqttLightOption> MqttLights { get; set; } = Array.Empty<MqttLightOption>();
+
+    [Parameter]
+    public bool IsEditing { get; set; }
+
+    [Parameter]
+    public EventCallback<MappingEditorModel> OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(Model.Name) &&
+        !string.IsNullOrWhiteSpace(Model.Kind) &&
+        !string.IsNullOrWhiteSpace(Model.LoxoneUuidAction) &&
+        !string.IsNullOrWhiteSpace(Model.MqttTopic);
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(Model.LoxoneUuidAction))
+        {
+            _selectedLoxoneSubcontrol = LoxoneSubcontrols.FirstOrDefault(s => s.UuidAction == Model.LoxoneUuidAction);
+        }
+
+        if (!string.IsNullOrWhiteSpace(Model.MqttTopic))
+        {
+            _selectedMqttLight = MqttLights.FirstOrDefault(l => l.Topic == Model.MqttTopic);
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_selectedLoxoneSubcontrol is not null)
+        {
+            Model.LoxoneUuidAction = _selectedLoxoneSubcontrol.UuidAction;
+        }
+
+        if (_selectedMqttLight is not null)
+        {
+            Model.MqttTopic = _selectedMqttLight.Topic;
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        if (IsValid)
+        {
+            await OnSave.InvokeAsync(Model);
+        }
+    }
+
+    private async Task HandleCancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}
