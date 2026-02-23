@@ -460,26 +460,44 @@ public class LoxoneStructureState : ILoxoneStructureState
 
     private void HandleWebSocketMessage(object? sender, string json)
     {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("uuid", out var uuidProp) || !root.TryGetProperty("value", out var valueProp))
-            return;
-
-        var uuid = uuidProp.GetString();
-        if (uuid is null)
-            return;
-
-        var value = valueProp.ToString();
-        if (_uuidMap.TryGetValue(uuid, out var ctrl) && ctrl.States is not null)
+        JsonDocument? doc = null;
+        try
         {
-            foreach (var kvp in ctrl.States)
+            doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            // Only handle {"uuid":"…","value":"…"} state-update messages emitted by BinaryProtocolParser.
+            // Ignore command responses ({"LL":…}) and any other shapes.
+            if (!root.TryGetProperty("uuid", out var uuidProp) || !root.TryGetProperty("value", out var valueProp))
+                return;
+
+            var uuid = uuidProp.GetString();
+            if (uuid is null)
+                return;
+
+            var value = valueProp.ValueKind == JsonValueKind.String
+                ? valueProp.GetString() ?? string.Empty
+                : valueProp.ToString();
+
+            if (_uuidMap.TryGetValue(uuid, out var ctrl) && ctrl.States is not null)
             {
-                if (kvp.Value == uuid)
+                foreach (var kvp in ctrl.States)
                 {
-                    ctrl.UpdateStateValue(kvp.Key, value);
-                    break;
+                    if (kvp.Value == uuid)
+                    {
+                        ctrl.UpdateStateValue(kvp.Key, value);
+                        break;
+                    }
                 }
             }
+        }
+        catch (JsonException)
+        {
+            // Not valid JSON – silently ignore (e.g. stray binary data)
+        }
+        finally
+        {
+            doc?.Dispose();
         }
     }
 }

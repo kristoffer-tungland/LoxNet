@@ -16,7 +16,10 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     private readonly ILoxoneHttpClient _http;
     private WebsocketClient? _wsClient;
     private LoxoneWebSocketEncryption? _encryption;
-    private System.IO.MemoryStream? _receiveBuffer;
+    // Two-frame state machine: Loxone sends the 8-byte header as one frame, then the payload
+    // as the next separate frame. We store the pending header between the two callbacks.
+    private byte[]? _pendingHeader;
+    private readonly object _frameStateLock = new();
     private string? _cachedCertificate;
     private string? _tokenKeyHex;
     private string? _tokenHashAlg;
@@ -44,19 +47,25 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         var uri = new Uri($"{scheme}://{opts.Host}:{opts.Port}/ws/rfc6455");
 
         _wsClient = new WebsocketClient(uri);
-        _receiveBuffer = new System.IO.MemoryStream();
-        
+
+        // The Miniserver sends binary protocol frames (headers + payloads) as WebSocket Text
+        // frames, which is technically spec-violating but standard Loxone behaviour.
+        // By default Websocket.Client decodes text frames as UTF-8, which corrupts bytes > 127.
+        // Setting Latin-1 (ISO-8859-1) preserves every byte value 0-255 as a 1:1 character,
+        // so we can reliably recover the original bytes with Encoding.Latin1.GetBytes().
+        _wsClient.MessageEncoding = Encoding.Latin1;
+
         // Create unbounded channel for message passing - will never block or fail
-        _messageChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions 
-        { 
+        _messageChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+        {
             SingleReader = false,  // Multiple readers (for broadcast)
             SingleWriter = true    // Single writer (the message handler)
         });
-        
+
         // Configure Websocket.Client for better reliability
         _wsClient.ReconnectTimeout = null; // disable auto-reconnect for authentication flow
         _wsClient.ErrorReconnectTimeout = TimeSpan.FromSeconds(5); // but reconnect on errors
-        
+
         // Monitor disconnections for diagnostics
         _wsClient.DisconnectionHappened.Subscribe(info =>
         {
@@ -67,55 +76,25 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         {
             try
             {
-                if (!string.IsNullOrEmpty(msg.Text))
+                // Recover the raw bytes for this WebSocket frame.
+                // The Miniserver sends everything (including binary protocol frames) as WebSocket
+                // Text frames. With MessageEncoding = Latin1 the bytes are preserved 1:1 as
+                // char values 0-255, so Latin1.GetBytes() recovers the original byte values.
+                byte[] frameBytes;
+                if (msg.Binary != null && msg.Binary.Length > 0)
                 {
-                    // Write to channel (never blocks or fails on unbounded channel)
-                    _messageChannel?.Writer.TryWrite(msg.Text);
-                    
-                    MessageReceived?.Invoke(this, msg.Text);
+                    frameBytes = msg.Binary;
+                }
+                else if (!string.IsNullOrEmpty(msg.Text))
+                {
+                    frameBytes = Encoding.Latin1.GetBytes(msg.Text);
+                }
+                else
+                {
                     return;
                 }
 
-                if (msg.Binary != null && msg.Binary.Length > 0)
-                {
-                    lock (_receiveBuffer!)
-                    {
-                        // Append incoming bytes
-                        _receiveBuffer!.Write(msg.Binary, 0, msg.Binary.Length);
-                        var bufferArray = _receiveBuffer.ToArray();
-
-                        // Try to parse as many complete messages as possible
-                        while (BinaryProtocolParser.TryParseMessage(bufferArray, out var parsedJson, out var parsedLen))
-                        {
-                            try
-                            {
-                                // Write to channel (never blocks or fails on unbounded channel)
-                                _messageChannel?.Writer.TryWrite(parsedJson);
-                                
-                                MessageReceived?.Invoke(this, parsedJson);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "[WebSocket] Error processing parsed JSON");
-                            }
-
-                            // Remove parsed bytes from buffer
-                            var remaining = bufferArray.Length - parsedLen;
-                            if (remaining <= 0)
-                            {
-                                _receiveBuffer.SetLength(0);
-                                bufferArray = Array.Empty<byte>();
-                                break;
-                            }
-
-                            var tmp = new byte[remaining];
-                            Array.Copy(bufferArray, parsedLen, tmp, 0, remaining);
-                            _receiveBuffer.SetLength(0);
-                            _receiveBuffer.Write(tmp, 0, tmp.Length);
-                            bufferArray = _receiveBuffer.ToArray();
-                        }
-                    }
-                }
+                HandleFrame(frameBytes);
             }
             catch (Exception ex)
             {
@@ -136,6 +115,135 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Handles a single raw WebSocket frame using the Loxone two-frame protocol:
+    /// <list type="bullet">
+    ///   <item>Frame 1 (8 bytes starting with 0x03): a binary protocol header — stored as
+    ///   <see cref="_pendingHeader"/> until the payload frame arrives.</item>
+    ///   <item>Frame 2 (N bytes, no magic prefix): the payload for the previously stored
+    ///   header — combined with that header and dispatched.</item>
+    ///   <item>Any frame that is not an 8-byte header and for which no header is pending is
+    ///   treated as a plain text (JSON) command response.</item>
+    /// </list>
+    /// </summary>
+    private void HandleFrame(byte[] frameBytes)
+    {
+        lock (_frameStateLock)
+        {
+            // Detect a binary protocol header: exactly 8 bytes starting with magic 0x03.
+            // (The Miniserver can also send the header inside a larger frame that is still
+            // only 8 bytes; payload is always a separate frame per the spec.)
+            bool isHeader = frameBytes.Length == 8 && frameBytes[0] == 0x03;
+
+            if (isHeader)
+            {
+                // Keepalive header has zero-length payload — dispatch immediately.
+                var msgType = (LoxoneMessageType)frameBytes[1];
+                uint payloadLength = BitConverter.ToUInt32(frameBytes, 4);
+
+                if (msgType == LoxoneMessageType.Keepalive || payloadLength == 0)
+                {
+                    var immediateMsg = new LoxoneBinaryMessage(msgType, null, Array.Empty<(string, string)>(), ReadOnlyMemory<byte>.Empty);
+                    DispatchBinaryMessage(immediateMsg);
+                    _pendingHeader = null;
+                }
+                else
+                {
+                    // Store header and wait for the payload frame.
+                    _pendingHeader = frameBytes;
+                }
+                return;
+            }
+
+            if (_pendingHeader != null)
+            {
+                // This frame is the payload for the stored header.
+                var header = _pendingHeader;
+                _pendingHeader = null;
+
+                bool estimated = (header[2] & 0x80) != 0;
+                var msgType = (LoxoneMessageType)header[1];
+
+                if (estimated)
+                {
+                    // The estimated header was just a size hint; the real header immediately
+                    // follows at the start of this "payload" frame.
+                    // Re-process this frame from the beginning to find the real header.
+                    HandleFrame(frameBytes);
+                    return;
+                }
+
+                try
+                {
+                    var payload = new ReadOnlyMemory<byte>(frameBytes);
+                    var parsed = BinaryProtocolParser.ParsePayloadPublic(msgType, payload);
+                    DispatchBinaryMessage(parsed);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[WebSocket] Error parsing payload for {Type}", msgType);
+                }
+                return;
+            }
+
+            // No pending header — this is a plain text (JSON) command response.
+            var text = Encoding.UTF8.GetString(frameBytes);
+            _logger.LogDebug("[WebSocket] Text frame (JSON response): {Preview}", text.Substring(0, Math.Min(120, text.Length)));
+            _messageChannel?.Writer.TryWrite(text);
+            MessageReceived?.Invoke(this, text);
+        }
+    }
+
+    /// <summary>
+    /// Dispatches a fully-parsed binary protocol message:
+    /// <list type="bullet">
+    ///   <item>Text messages are forwarded to the command-response channel AND to MessageReceived.</item>
+    ///   <item>Event-table messages (ValueStates / TextStates) emit one MessageReceived event per
+    ///   state entry using the {"uuid":"…","value":"…"} JSON format consumed by LoxoneStructureState.</item>
+    ///   <item>Keepalive messages are forwarded to the command-response channel.</item>
+    ///   <item>All other message types are logged and silently dropped.</item>
+    /// </list>
+    /// </summary>
+    private void DispatchBinaryMessage(LoxoneBinaryMessage msg)
+    {
+        switch (msg.MessageType)
+        {
+            case LoxoneMessageType.Text:
+            {
+                var text = msg.Text ?? string.Empty;
+                _logger.LogDebug("[WebSocket] Text message received: {Preview}", text.Substring(0, Math.Min(120, text.Length)));
+                _messageChannel?.Writer.TryWrite(text);
+                MessageReceived?.Invoke(this, text);
+                break;
+            }
+
+            case LoxoneMessageType.ValueStates:
+            case LoxoneMessageType.TextStates:
+            {
+                _logger.LogDebug("[WebSocket] Event table ({Type}) with {Count} entries", msg.MessageType, msg.StateEvents.Count);
+                foreach (var (uuid, value) in msg.StateEvents)
+                {
+                    var json = BinaryProtocolParser.BuildStateJson(uuid, value);
+                    MessageReceived?.Invoke(this, json);
+                }
+                break;
+            }
+
+            case LoxoneMessageType.Keepalive:
+                _logger.LogDebug("[WebSocket] Keepalive received");
+                _messageChannel?.Writer.TryWrite("{\"LL\":{\"control\":\"keepalive\",\"Code\":\"200\",\"value\":\"\"}}");
+                break;
+
+            case LoxoneMessageType.OutOfService:
+                _logger.LogWarning("[WebSocket] Miniserver sent OutOfService indicator");
+                break;
+
+            default:
+                _logger.LogDebug("[WebSocket] Unhandled binary message type {Type}, payload {Length} bytes", msg.MessageType, msg.Payload.Length);
+                break;
+        }
     }
 
     private async Task<string> ReceiveStringAsync(CancellationToken cancellationToken)
