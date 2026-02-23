@@ -294,6 +294,7 @@
         try
         {
             using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 Host = _model.Loxone.Host,
@@ -336,6 +337,7 @@
         try
         {
             using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 Host = _model.Mqtt.Host,
@@ -379,6 +381,7 @@
         {
             // Load Loxone subcontrols
             using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
             var loxResponse = await client.GetAsync("/api/loxone/subcontrols");
             var loxJson = await loxResponse.Content.ReadAsStringAsync();
             _loxoneSubcontrols = System.Text.Json.JsonSerializer.Deserialize<List<LoxoneSubcontrolOption>>(loxJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
@@ -449,6 +452,7 @@
         try
         {
             using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
             
             // Convert to BridgeConfig
             var config = new BridgeConfig
