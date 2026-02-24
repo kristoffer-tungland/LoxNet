@@ -12,10 +12,25 @@ public class LoxoneStateParser
         _logger = logger;
     }
 
-    public NormalizedLightState FromDimmer(string? value)
+    /// <summary>
+    /// The state name that carries the live position value for a Dimmer control.
+    /// All other Dimmer states (min, max, step) are metadata and are ignored.
+    /// </summary>
+    public const string DimmerPositionState = "position";
+
+    /// <summary>
+    /// The state name that carries the live colour value for a ColorPickerV2 control.
+    /// </summary>
+    public const string ColorPickerColorState = "color";
+
+    public NormalizedLightState FromDimmer(string stateName, string? value)
     {
-        if (int.TryParse(value, out var pos))
+        if (!string.Equals(stateName, DimmerPositionState, StringComparison.OrdinalIgnoreCase))
+            return NormalizedLightState.Empty;
+
+        if (double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var raw))
         {
+            var pos = (int)Math.Round(raw);
             return new NormalizedLightState(pos > 0, pos, null, null);
         }
 
@@ -23,8 +38,11 @@ public class LoxoneStateParser
         return NormalizedLightState.Empty;
     }
 
-    public NormalizedLightState FromColorPicker(string? value)
+    public NormalizedLightState FromColorPicker(string stateName, string? value)
     {
+        if (!string.Equals(stateName, ColorPickerColorState, StringComparison.OrdinalIgnoreCase))
+            return NormalizedLightState.Empty;
+
         if (string.IsNullOrWhiteSpace(value))
         {
             return NormalizedLightState.Empty;
@@ -50,7 +68,7 @@ public class LoxoneStateParser
             }
         }
 
-        _logger.LogWarning("Unrecognized color picker state {Value}", value);
+        _logger.LogWarning("Unrecognized color picker value {Value}", value);
         return NormalizedLightState.Empty;
     }
 }

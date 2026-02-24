@@ -12,14 +12,14 @@ public class ColorPickerParsingTests
     [Fact]
     public void ParsesHsv()
     {
-        var state = _parser.FromColorPicker("hsv(0,100,100)");
+        var state = _parser.FromColorPicker(LoxoneStateParser.ColorPickerColorState, "hsv(0,100,100)");
         Assert.Equal((0, 100, 100), state.Hsv);
     }
 
     [Fact]
     public void ParsesTemp()
     {
-        var state = _parser.FromColorPicker("temp(100,4483)");
+        var state = _parser.FromColorPicker(LoxoneStateParser.ColorPickerColorState, "temp(100,4483)");
         Assert.Equal(100, state.BrightnessPct);
         Assert.Equal(4483, state.Kelvin);
     }

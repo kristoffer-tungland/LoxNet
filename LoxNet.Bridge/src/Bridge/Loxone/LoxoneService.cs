@@ -75,13 +75,29 @@ public class LoxoneService : ILoxoneCommandExecutor
         {
             if (!_structure.TryGetControl(mapping.LoxoneUuidAction, out var control) || control is null)
             {
-                _logger.LogWarning("Mapping {Name} references unknown uuidAction {Uuid}", mapping.Name, mapping.LoxoneUuidAction);
+                _logger.LogWarning("Mapping {Name} references unknown uuidAction {Uuid} — state changes will not be forwarded to MQTT", mapping.Name, mapping.LoxoneUuidAction);
                 continue;
             }
 
-            control.StateChanged += async (_, args) =>
+            _logger.LogInformation("Subscribed to state changes for mapping {Name} ({Uuid})", mapping.Name, mapping.LoxoneUuidAction);
+
+            control.StateChanged += (_, args) =>
             {
-                await HandleStateAsync(mapping, args.State, args.Value, cancellationToken).ConfigureAwait(false);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await HandleStateAsync(mapping, args.State, args.Value, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected on shutdown.
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error handling Loxone state change for mapping {Name} (state={State})", mapping.Name, args.State);
+                    }
+                }, cancellationToken);
             };
         }
     }
@@ -93,10 +109,12 @@ public class LoxoneService : ILoxoneCommandExecutor
             return Task.CompletedTask;
         }
 
+        _logger.LogTrace("Loxone state change: {Name} state={State} value={Value}", mapping.Name, stateName, value);
+
         var normalized = mapping.Kind.ToLowerInvariant() switch
         {
-            "dimmer" => _stateParser.FromDimmer(value),
-            "colorpickerv2" => _stateParser.FromColorPicker(value),
+            "dimmer" => _stateParser.FromDimmer(stateName, value),
+            "colorpickerv2" => _stateParser.FromColorPicker(stateName, value),
             _ => NormalizedLightState.Empty
         };
 
