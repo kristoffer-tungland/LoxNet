@@ -32,7 +32,7 @@ public class LoxoneCommandBuilder
                 commands.Add($"setBrightness/{state.BrightnessPct.Value}");
             }
 
-            if (state.Hsv.HasValue && mapping.Options.AllowColor)
+            if (state.Hsv.HasValue)
             {
                 var hsv = state.Hsv.Value;
                 commands.Add($"hsv({hsv.H},{hsv.S},{hsv.V})");

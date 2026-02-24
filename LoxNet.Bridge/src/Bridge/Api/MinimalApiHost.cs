@@ -191,9 +191,7 @@ public class MinimalApiHost : IHostedService
                     Port = payload.Port,
                     UseHttps = payload.UseHttps,
                     User = payload.User,
-                    Password = payload.Password,
-                    Loxapp3Path = payload.Loxapp3Path,
-                    RefreshLoxapp3OnStart = payload.RefreshLoxapp3OnStart
+                    Password = payload.Password
                 }
             };
 

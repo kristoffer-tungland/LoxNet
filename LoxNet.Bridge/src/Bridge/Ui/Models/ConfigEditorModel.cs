@@ -29,9 +29,6 @@ public class LoxoneEditorModel
     [Required]
     public string Password { get; set; } = string.Empty;
 
-    public string? Loxapp3Path { get; set; }
-
-    public bool RefreshLoxapp3OnStart { get; set; } = true;
 }
 
 public class MqttEditorModel
@@ -64,13 +61,4 @@ public class MappingEditorModel
 
     [Required]
     public string LoxoneUuidAction { get; set; } = string.Empty;
-
-    public MappingOptionsEditorModel Options { get; set; } = new();
-}
-
-public class MappingOptionsEditorModel
-{
-    public bool PreferMqttState { get; set; }
-
-    public bool AllowColor { get; set; } = true;
 }

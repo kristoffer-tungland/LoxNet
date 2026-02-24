@@ -80,10 +80,7 @@
 
                 <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
                     <FluentCheckbox @bind-Value="_model.Loxone.UseHttps" Label="Use HTTPS" />
-                    <FluentCheckbox @bind-Value="_model.Loxone.RefreshLoxapp3OnStart" Label="Refresh LoxApp3 on Start" />
                 </FluentStack>
-
-                <FluentTextField @bind-Value="_model.Loxone.Loxapp3Path" Label="LoxApp3 Path (Optional)" Placeholder="/path/to/LoxApp3.json" />
 
                 <FluentButton Appearance="Appearance.Accent" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
                     @if (_isConnecting)
@@ -245,9 +242,7 @@
                         Port = config.Loxone.Port,
                         UseHttps = config.Loxone.UseHttps,
                         User = config.Loxone.User,
-                        Password = config.Loxone.Password,
-                        Loxapp3Path = config.Loxone.Loxapp3Path,
-                        RefreshLoxapp3OnStart = config.Loxone.RefreshLoxapp3OnStart
+                        Password = config.Loxone.Password
                     },
                     Mqtt = new MqttEditorModel
                     {
@@ -263,12 +258,7 @@
                         Name = m.Name,
                         Kind = m.Kind,
                         MqttTopic = m.MqttTopic,
-                        LoxoneUuidAction = m.LoxoneUuidAction,
-                        Options = new MappingOptionsEditorModel
-                        {
-                            PreferMqttState = m.Options.PreferMqttState,
-                            AllowColor = m.Options.AllowColor
-                        }
+                        LoxoneUuidAction = m.LoxoneUuidAction
                     }).ToList()
                 };
             }
@@ -414,12 +404,7 @@
             Name = _newMapping.Name,
             Kind = _newMapping.Kind,
             MqttTopic = _newMapping.MqttTopic,
-            LoxoneUuidAction = _newMapping.LoxoneUuidAction,
-            Options = new MappingOptionsEditorModel
-            {
-                PreferMqttState = _newMapping.Options.PreferMqttState,
-                AllowColor = _newMapping.Options.AllowColor
-            }
+            LoxoneUuidAction = _newMapping.LoxoneUuidAction
         });
         
         _showMappingWizard = false;
@@ -463,9 +448,7 @@
                     Port = _model.Loxone.Port,
                     UseHttps = _model.Loxone.UseHttps,
                     User = _model.Loxone.User,
-                    Password = _model.Loxone.Password,
-                    Loxapp3Path = _model.Loxone.Loxapp3Path,
-                    RefreshLoxapp3OnStart = _model.Loxone.RefreshLoxapp3OnStart
+                    Password = _model.Loxone.Password
                 },
                 Mqtt = new MqttSection
                 {
@@ -481,12 +464,7 @@
                     Name = m.Name,
                     Kind = m.Kind,
                     MqttTopic = m.MqttTopic,
-                    LoxoneUuidAction = m.LoxoneUuidAction,
-                    Options = new MappingOptions
-                    {
-                        PreferMqttState = m.Options.PreferMqttState,
-                        AllowColor = m.Options.AllowColor
-                    }
+                    LoxoneUuidAction = m.LoxoneUuidAction
                 }).ToList()
             };
             
@@ -517,6 +495,6 @@
 
     private string GetMappingStatus(MappingEditorModel mapping)
     {
-        return $"Options: PreferMQTT={mapping.Options.PreferMqttState}, AllowColor={mapping.Options.AllowColor}";
+        return $"{mapping.Kind} → {mapping.MqttTopic}";
     }
 }

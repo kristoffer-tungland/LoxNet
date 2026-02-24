@@ -14,9 +14,7 @@ public static class BridgeConfigMapper
                 Port = config.Loxone.Port,
                 UseHttps = config.Loxone.UseHttps,
                 User = config.Loxone.User,
-                Password = config.Loxone.Password,
-                Loxapp3Path = config.Loxone.Loxapp3Path,
-                RefreshLoxapp3OnStart = config.Loxone.RefreshLoxapp3OnStart
+                Password = config.Loxone.Password
             },
             Mqtt = new MqttSectionDto
             {
@@ -33,12 +31,7 @@ public static class BridgeConfigMapper
                     Name = m.Name,
                     Kind = m.Kind,
                     MqttTopic = m.MqttTopic,
-                    LoxoneUuidAction = m.LoxoneUuidAction,
-                    Options = new MappingOptionsDto
-                    {
-                        PreferMqttState = m.Options.PreferMqttState,
-                        AllowColor = m.Options.AllowColor
-                    }
+                    LoxoneUuidAction = m.LoxoneUuidAction
                 })
                 .ToArray()
         };
@@ -54,9 +47,7 @@ public static class BridgeConfigMapper
                 Port = dto.Loxone.Port,
                 UseHttps = dto.Loxone.UseHttps,
                 User = dto.Loxone.User,
-                Password = dto.Loxone.Password,
-                Loxapp3Path = dto.Loxone.Loxapp3Path,
-                RefreshLoxapp3OnStart = dto.Loxone.RefreshLoxapp3OnStart
+                Password = dto.Loxone.Password
             },
             Mqtt = new MqttSection
             {
@@ -79,12 +70,7 @@ public static class BridgeConfigMapper
                     Name = m.Name,
                     Kind = m.Kind,
                     MqttTopic = m.MqttTopic,
-                    LoxoneUuidAction = m.LoxoneUuidAction,
-                    Options = new MappingOptions
-                    {
-                        PreferMqttState = m.Options.PreferMqttState,
-                        AllowColor = m.Options.AllowColor
-                    }
+                    LoxoneUuidAction = m.LoxoneUuidAction
                 })
                 .ToList()
         };

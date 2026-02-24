@@ -50,21 +50,6 @@
         </OptionTemplate>
     </FluentSelect>
 
-    <FluentDivider />
-
-    <FluentLabel Typo="Typography.Body" Style="font-weight: 600">Options</FluentLabel>
-
-    <FluentSwitch @bind-Value="@Model.Options.PreferMqttState"
-                  Label="Prefer MQTT State"
-                  CheckedMessage="Enabled"
-                  UncheckedMessage="Disabled" />
-
-    <FluentSwitch @bind-Value="@Model.Options.AllowColor"
-                  Label="Allow Color Control"
-                  CheckedMessage="Enabled"
-                  UncheckedMessage="Disabled"
-                  Disabled="@(Model.Kind != "ColorPickerV2")" />
-
     <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8">
         <FluentButton Appearance="Appearance.Accent"
                       OnClick="HandleSave"

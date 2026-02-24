@@ -14,5 +14,3 @@ mappings:
     kind: "dimmer"
     mqttTopic: "zigbee2mqtt/example_dimmer"
     loxoneUuidAction: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-    options:
-      preferMqttState: true

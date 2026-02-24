@@ -62,9 +62,6 @@ public class LoxoneSection
     [Required]
     public string Password { get; init; } = string.Empty;
 
-    public string? Loxapp3Path { get; init; }
-
-    public bool RefreshLoxapp3OnStart { get; init; } = true;
 }
 
 public class MqttSection
@@ -110,13 +107,4 @@ public class MappingSection
 
     [Required]
     public string LoxoneUuidAction { get; init; } = string.Empty;
-
-    public MappingOptions Options { get; init; } = new();
-}
-
-public class MappingOptions
-{
-    public bool PreferMqttState { get; init; }
-
-    public bool AllowColor { get; init; } = true;
 }

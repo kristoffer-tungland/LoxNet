@@ -21,9 +21,6 @@ public sealed record LoxoneSectionDto
 
     public required string Password { get; init; }
 
-    public string? Loxapp3Path { get; init; }
-
-    public bool RefreshLoxapp3OnStart { get; init; } = true;
 }
 
 public sealed record MqttSectionDto
@@ -50,15 +47,6 @@ public sealed record MappingSectionDto
     public required string MqttTopic { get; init; }
 
     public required string LoxoneUuidAction { get; init; }
-
-    public MappingOptionsDto Options { get; init; } = new();
-}
-
-public sealed record MappingOptionsDto
-{
-    public bool PreferMqttState { get; init; }
-
-    public bool AllowColor { get; init; } = true;
 }
 
 public sealed record ConfigSaveResult
