@@ -78,7 +78,7 @@ app.MapRazorComponents<App>()
 // Map API endpoints
 app.MapGet("/health", ApiEndpoints.BuildHealth);
 app.MapGet("/api/loxone/subcontrols", ApiEndpoints.DiscoverLoxoneSubcontrols);
-app.MapGet("/api/mqtt/lights", ApiEndpoints.DiscoverMqttLights);
+app.MapGet("/api/mqtt/lights", ApiEndpoints.DiscoverMqttLightsAsync);
 app.MapPost("/api/loxone/connect", ApiEndpoints.ConnectLoxoneAsync);
 app.MapPost("/api/mqtt/connect", ApiEndpoints.ConnectMqttAsync);
 app.MapGet("/config", (BridgeConfig config) => Results.Ok(BridgeConfigMapper.ToDto(config)));

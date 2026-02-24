@@ -1,4 +1,7 @@
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Text;
+using System.Text.Json;
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Sync;
 using Microsoft.Extensions.Logging;
@@ -61,6 +64,90 @@ public class MqttService : IMqttClientHost
         {
             await _client.DisconnectAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Subscribes to the Home Assistant MQTT discovery topic (<c>homeassistant/light/#</c>),
+    /// collects all light config payloads for the specified timeout, then unsubscribes and
+    /// returns the results.
+    /// </summary>
+    /// <param name="timeout">How long to wait for discovery messages. Defaults to 2 seconds.</param>
+    /// <param name="cancellationToken">Cancellation token for the overall operation.</param>
+    public async Task<IReadOnlyList<HaLightConfigDto>> DiscoverHaLightsAsync(
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_client.IsConnected)
+        {
+            _logger.LogWarning("MQTT client is not connected; cannot perform HA light discovery.");
+            return [];
+        }
+
+        const string discoveryTopic = "homeassistant/light/#";
+        var results = new ConcurrentDictionary<string, HaLightConfigDto>(StringComparer.OrdinalIgnoreCase);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(2));
+
+        Func<MqttApplicationMessageReceivedEventArgs, Task> handler = args =>
+        {
+            var topic = args.ApplicationMessage.Topic;
+            if (!topic.EndsWith("/config", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.CompletedTask;
+            }
+
+            try
+            {
+                var json = Encoding.UTF8.GetString(args.ApplicationMessage.Payload.ToArray());
+                var config = JsonSerializer.Deserialize<HaLightConfigDto>(json);
+                if (config is not null)
+                {
+                    results[topic] = config;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to parse HA discovery payload on {Topic}", topic);
+            }
+
+            return Task.CompletedTask;
+        };
+
+        _client.ApplicationMessageReceivedAsync += handler;
+
+        var subscribeOptions = new MqttClientSubscribeOptions
+        {
+            TopicFilters = [new MqttTopicFilterBuilder().WithTopic(discoveryTopic).Build()]
+        };
+
+        await _client.SubscribeAsync(subscribeOptions, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("Subscribed to {Topic} for HA light discovery", discoveryTopic);
+
+        try
+        {
+            await Task.Delay(Timeout.Infinite, cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected – either the timeout fired or the caller cancelled.
+        }
+        finally
+        {
+            _client.ApplicationMessageReceivedAsync -= handler;
+
+            if (_client.IsConnected)
+            {
+                var unsubscribeOptions = new MqttClientUnsubscribeOptions
+                {
+                    TopicFilters = [discoveryTopic]
+                };
+                await _client.UnsubscribeAsync(unsubscribeOptions, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+
+        _logger.LogInformation("HA light discovery complete – found {Count} device(s)", results.Count);
+        return results.Values.ToList();
     }
 
     private Task SubscribeTopicsAsync(BridgeConfig config, CancellationToken cancellationToken)

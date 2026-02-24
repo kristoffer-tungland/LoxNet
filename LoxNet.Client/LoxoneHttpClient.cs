@@ -51,25 +51,18 @@ public class LoxoneHttpClient : ILoxoneHttpClient
 
     /// <summary>
     /// Builds an authenticated path by appending token authentication query parameters.
+    /// Sends the JWT token in plaintext as supported since Miniserver firmware 11.2.
     /// Returns the original path if no token or username is available.
     /// </summary>
-    private async Task<string> BuildAuthenticatedPathAsync(string path, CancellationToken cancellationToken)
+    private string BuildAuthenticatedPath(string path)
     {
         if (LastToken is null || string.IsNullOrEmpty(Username))
             return path;
 
-        // Get key for hashing the token
-        using var keyDoc = await RequestJsonInternalAsync("jdev/sys/getkey", cancellationToken).ConfigureAwait(false);
-        var keyMsg = LoxoneMessageParser.Parse(keyDoc);
-        keyMsg.EnsureSuccess();
-        var key = HexUtils.FromHexString(keyMsg.Value.GetString()!);
-
-        // Hash the token
-        var tokenHash = HmacHex(key, Encoding.UTF8.GetBytes(LastToken.Token), HashAlgorithmName.SHA1);
-
-        // Append authentication parameters
+        // Since Miniserver 11.2, JWT tokens can be sent in plaintext (no HMAC step needed).
+        // This avoids the SHA1 vs SHA256 ambiguity and removes the extra getkey roundtrip.
         var separator = path.Contains('?') ? '&' : '?';
-        return $"{path}{separator}autht={tokenHash}&user={Uri.EscapeDataString(Username)}";
+        return $"{path}{separator}autht={Uri.EscapeDataString(LastToken.Token)}&user={Uri.EscapeDataString(Username)}";
     }
 
     /// <summary>
@@ -104,7 +97,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     public async Task<JsonDocument> RequestJsonAsync(string path, CancellationToken cancellationToken = default)
     {
         // Build authenticated path if token is available
-        var authenticatedPath = await BuildAuthenticatedPathAsync(path, cancellationToken).ConfigureAwait(false);
+        var authenticatedPath = BuildAuthenticatedPath(path);
         using var resp = await _http.GetAsync($"{BaseUrl}/{authenticatedPath}", cancellationToken).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
         {
@@ -135,7 +128,7 @@ public class LoxoneHttpClient : ILoxoneHttpClient
     public async Task<string> RequestTextAsync(string path, CancellationToken cancellationToken = default)
     {
         // Build authenticated path if token is available
-        var authenticatedPath = await BuildAuthenticatedPathAsync(path, cancellationToken).ConfigureAwait(false);
+        var authenticatedPath = BuildAuthenticatedPath(path);
         using var resp = await _http.GetAsync($"{BaseUrl}/{authenticatedPath}", cancellationToken).ConfigureAwait(false);
         resp.EnsureSuccessStatusCode();
 #if NET48

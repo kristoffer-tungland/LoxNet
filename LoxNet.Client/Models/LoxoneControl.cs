@@ -116,7 +116,7 @@ public class LoxoneControl
     /// <param name="command">Command path to append after the action UUID.</param>
     protected async Task<LoxoneMessage> ExecuteCommandAsync(ILoxoneHttpClient client, string command, CancellationToken cancellationToken = default)
     {
-        using var doc = await client.RequestJsonAsync($"dev/sps/io/{UuidAction}/{command}", cancellationToken).ConfigureAwait(false);
+        using var doc = await client.RequestJsonAsync($"jdev/sps/io/{UuidAction}/{command}", cancellationToken).ConfigureAwait(false);
         return LoxoneMessageParser.Parse(doc);
     }
 }

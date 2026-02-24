@@ -71,7 +71,7 @@ public class MinimalApiHost : IHostedService
 
         app.MapGet("/health", () => BuildHealth());
         app.MapGet("/api/loxone/subcontrols", () => DiscoverLoxoneSubcontrols());
-        app.MapGet("/api/mqtt/lights", () => DiscoverMqttLights());
+        app.MapGet("/api/mqtt/lights", async (CancellationToken ct) => await DiscoverMqttLightsAsync(ct).ConfigureAwait(false));
         app.MapPost("/api/loxone/connect", async (LoxoneSectionDto payload, CancellationToken ct) => await ConnectLoxoneAsync(payload, ct).ConfigureAwait(false));
         app.MapPost("/api/mqtt/connect", async (MqttSectionDto payload, CancellationToken ct) => await ConnectMqttAsync(payload, ct).ConfigureAwait(false));
         app.MapGet("/config", () => Results.Ok(BridgeConfigMapper.ToDto(_config)));
@@ -149,17 +149,30 @@ public class MinimalApiHost : IHostedService
             .DistinctBy(c => c.uuidAction);
     }
 
-    private object DiscoverMqttLights()
+    private async Task<IResult> DiscoverMqttLightsAsync(CancellationToken cancellationToken)
     {
-        // TODO: Implement actual MQTT device discovery by subscribing to zigbee2mqtt/bridge/devices
-        // Filter for devices with type=light or supported features containing brightness/color
-        // For now, return empty list with hint
-        var result = new MqttLightsDiscoveryResult
+        var haLights = await _mqttService.DiscoverHaLightsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var lights = haLights.Select(l =>
         {
-            Lights = Array.Empty<MqttDeviceDto>()
-        };
-        
-        return Results.Ok(result);
+            var features = new List<string>();
+            if (l.Brightness) features.Add("brightness");
+            if (l.Effect) features.Add("effect");
+            if (l.SupportedColorModes is not null) features.AddRange(l.SupportedColorModes);
+
+            var modelParts = new[] { l.Device?.Manufacturer, l.Device?.Model }
+                .Where(s => !string.IsNullOrWhiteSpace(s));
+
+            return new MqttDeviceDto
+            {
+                FriendlyName = l.Device?.Name ?? l.ObjectId ?? l.UniqueId ?? string.Empty,
+                Topic = l.StateTopic ?? string.Empty,
+                Model = string.Join(" ", modelParts),
+                SupportedFeatures = features.ToArray()
+            };
+        }).ToList();
+
+        return Results.Ok(new MqttLightsDiscoveryResult { Lights = lights });
     }
 
     private async Task<IResult> ConnectLoxoneAsync(LoxoneSectionDto payload, CancellationToken cancellationToken)

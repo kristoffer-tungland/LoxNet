@@ -58,7 +58,7 @@ public class LoxoneService : ILoxoneCommandExecutor
 
         foreach (var command in commands)
         {
-            using var doc = await _client.Http.RequestJsonAsync($"dev/sps/io/{mapping.LoxoneUuidAction}/{command}", cancellationToken).ConfigureAwait(false);
+            using var doc = await _client.Http.RequestJsonAsync($"jdev/sps/io/{mapping.LoxoneUuidAction}/{command}", cancellationToken).ConfigureAwait(false);
             var msg = LoxoneMessageParser.Parse(doc);
             msg.EnsureSuccess();
         }
