@@ -21,12 +21,12 @@
                   OptionValue="@(item => item.UuidAction)"
                   Label="Loxone Sub-Control"
                   Height="300px"
+                  OptionStyle="height: auto; padding: 6px 8px;"
                   Required
                   Placeholder="Select a Loxone sub-control">
         <OptionTemplate>
-            <div>
+            <div style="display: flex; flex-direction: column;">
                 <strong>@context.SubcontrolName</strong>
-                <br />
                 <small>@context.ParentName (@context.Type)</small>
             </div>
         </OptionTemplate>
@@ -39,12 +39,12 @@
                   OptionValue="@(item => item.Topic)"
                   Label="MQTT Light Device"
                   Height="300px"
+                  OptionStyle="height: auto; padding: 6px 8px;"
                   Required
                   Placeholder="Select an MQTT light device">
         <OptionTemplate>
-            <div>
+            <div style="display: flex; flex-direction: column;">
                 <strong>@context.FriendlyName</strong>
-                <br />
                 <small>@context.Model</small>
             </div>
         </OptionTemplate>
