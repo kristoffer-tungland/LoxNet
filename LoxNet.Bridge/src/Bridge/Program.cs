@@ -69,15 +69,26 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
+    app.UseHttpsRedirection();
+    app.UseAntiforgery();
 }
 
-app.UseHttpsRedirection();
-
-app.UseAntiforgery();
+if (app.Environment.IsDevelopment())
+{
+    app.UseAntiforgery();
+}
 
 app.MapStaticAssets();
-app.MapRazorComponents<App>()
+var razorComponents = app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Disable antiforgery validation for Blazor's circuit negotiation in development.
+// Each server restart regenerates Data Protection keys, invalidating the antiforgery
+// cookie from the previous session and causing a 403 when reusing the same browser.
+if (app.Environment.IsDevelopment())
+{
+    razorComponents.DisableAntiforgery();
+}
 
 // Map API endpoints
 app.MapGet("/health", ApiEndpoints.BuildHealth);

@@ -9,13 +9,46 @@
       "name": "LoxNet.Bridge (net9.0)",
       "type": "coreclr",
       "request": "launch",
+      "preLaunchTask": "build: Bridge",
       "program": "${workspaceFolder}/LoxNet.Bridge/src/Bridge/bin/Debug/net9.0/Bridge.dll",
+      "args": ["--urls", "http://localhost:5000"],
       "cwd": "${workspaceFolder}/LoxNet.Bridge/src/Bridge",
       "stopAtEntry": false,
       "console": "integratedTerminal",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "CONFIG": "${workspaceFolder}/LoxNet.Bridge/data/config.yaml"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on: (https?://\\S+)"
+      }
+    },
+    {
+      "name": "LoxNet.Bridge (Hot Reload)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "dotnet",
+      "args": [
+        "watch",
+        "run",
+        "--project",
+        "${workspaceFolder}/LoxNet.Bridge/src/Bridge/Bridge.csproj",
+        "--",
+        "--urls",
+        "http://localhost:5000"
+      ],
+      "cwd": "${workspaceFolder}/LoxNet.Bridge/src/Bridge",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "CONFIG": "${workspaceFolder}/LoxNet.Bridge/data/config.yaml",
+        "DOTNET_WATCH_RESTART_ON_RUDE_EDIT": "true"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on: (https?://\\S+)"
       }
     }
   ]
