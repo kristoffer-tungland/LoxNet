@@ -3,9 +3,10 @@
 @inject InMemoryLogSink LogSink
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavManager
+@inject IJSRuntime JS
 @implements IDisposable
 
-<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px;">
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px; padding-right: 24px;">
 
     @if (!string.IsNullOrWhiteSpace(_statusMessage))
     {
@@ -17,8 +18,8 @@
     }
 
     @* ── Live log feed ── *@
-    <FluentCard Style="flex: 1;">
-        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+    <FluentCard Style="flex: 1; width: 100%; box-sizing: border-box;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8" Style="padding-right: 4px;">
             <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                 <FluentLabel Typo="Typography.H4">Live Log</FluentLabel>
                 <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Wrap="true">
@@ -32,11 +33,12 @@
                         Apply
                     </FluentButton>
                     <FluentCheckbox @bind-Value="_autoScroll" Label="Auto-scroll" />
+                    <FluentButton Appearance="@(_copied ? Appearance.Accent : Appearance.Neutral)" OnClick="CopyLogsAsync" Title="Copy visible log entries to clipboard">@(_copied ? "Copied!" : "Copy")</FluentButton>
                     <FluentButton Appearance="Appearance.Neutral" OnClick="ClearLog">Clear</FluentButton>
                 </FluentStack>
             </FluentStack>
 
-            <div id="log-container" style="height: 500px; overflow-y: auto; background: var(--neutral-layer-1); border: 1px solid var(--neutral-stroke-rest); border-radius: 4px; padding: 8px; font-family: monospace; font-size: 12px;">
+            <div id="log-container" style="height: 500px; overflow-y: auto; width: 100%; box-sizing: border-box; background: var(--neutral-layer-1); border: 1px solid var(--neutral-stroke-rest); border-radius: 4px; padding: 8px; font-family: monospace; font-size: 12px;">
                 @foreach (var entry in _displayEntries.Where(e => LevelRank(e.Level) >= LevelRank(_selectedLevel)))
                 {
                     <div style="margin-bottom: 2px; color: @LevelColor(entry.Level);">
@@ -61,6 +63,7 @@
     private string _selectedLevel = "Information";
     private bool _isSaving;
     private bool _autoScroll = true;
+    private bool _copied;
     private string? _statusMessage;
     private string? _errorMessage;
     private readonly List<LogEntry> _displayEntries = new();
@@ -107,6 +110,22 @@
     private void ClearLog()
     {
         _displayEntries.Clear();
+        StateHasChanged();
+    }
+
+    private async Task CopyLogsAsync()
+    {
+        var filtered = _displayEntries.Where(e => LevelRank(e.Level) >= LevelRank(_selectedLevel));
+        var text = string.Join(Environment.NewLine, filtered.Select(e =>
+        {
+            var line = $"{e.Timestamp.LocalDateTime:HH:mm:ss} [{e.Level.ToUpperInvariant()[..3]}] {e.Message}";
+            return string.IsNullOrWhiteSpace(e.Exception) ? line : line + Environment.NewLine + e.Exception;
+        }));
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copied = false;
         StateHasChanged();
     }
 
