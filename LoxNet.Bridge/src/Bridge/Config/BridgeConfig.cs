@@ -100,9 +100,6 @@ public class MappingSection
     public string Name { get; init; } = string.Empty;
 
     [Required]
-    public string Kind { get; init; } = string.Empty;
-
-    [Required]
     public string MqttTopic { get; init; } = string.Empty;
 
     [Required]

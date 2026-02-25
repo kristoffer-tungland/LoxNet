@@ -11,6 +11,5 @@ logging:
 
 mappings:
   - name: "Example dimmer"
-    kind: "dimmer"
     mqttTopic: "zigbee2mqtt/example_dimmer"
     loxoneUuidAction: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"

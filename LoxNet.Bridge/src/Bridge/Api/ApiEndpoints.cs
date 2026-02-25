@@ -19,13 +19,9 @@ public static class ApiEndpoints
         foreach (var mapping in config.Mappings)
         {
             var status = "ok";
-            if (loxoneService.Structure is null || !loxoneService.Structure.TryGetControl(mapping.LoxoneUuidAction, out var control) || control is null)
+            if (loxoneService.Structure is null || !loxoneService.Structure.TryGetControl(mapping.LoxoneUuidAction, out _))
             {
                 status = "missing_subcontrol";
-            }
-            else if (!MatchesKind(control.Type, mapping.Kind))
-            {
-                status = "type_mismatch";
             }
 
             degraded |= status != "ok";
@@ -33,7 +29,6 @@ public static class ApiEndpoints
             mappings.Add(new
             {
                 mapping.Name,
-                mapping.Kind,
                 mapping.MqttTopic,
                 mapping.LoxoneUuidAction,
                 status
@@ -186,13 +181,4 @@ public static class ApiEndpoints
         }
     }
 
-    private static bool MatchesKind(ControlType type, string kind)
-    {
-        return kind.ToLowerInvariant() switch
-        {
-            "dimmer" => type == ControlType.Dimmer,
-            "colorpickerv2" => type == ControlType.ColorPickerV2,
-            _ => false
-        };
-    }
 }

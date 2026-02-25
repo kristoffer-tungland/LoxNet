@@ -5,15 +5,6 @@
 
     <FluentTextField @bind-Value="@Model.Name" Label="Mapping Name" Required Placeholder="e.g., Kitchen Lights" />
 
-    <FluentSelect TOption="string"
-                  Items="@_kindOptions"
-                  @bind-SelectedOption="@Model.Kind"
-                  Label="Device Type"
-                  Height="200px"
-                  Required>
-        <OptionTemplate>@context</OptionTemplate>
-    </FluentSelect>
-
     <FluentSelect TOption="LoxoneSubcontrolOption"
                   Items="@LoxoneSubcontrols"
                   @bind-SelectedOption="@_selectedLoxoneSubcontrol"
@@ -64,7 +55,6 @@
 </FluentStack>
 
 @code {
-    private readonly string[] _kindOptions = new[] { "Dimmer", "ColorPickerV2" };
     private LoxoneSubcontrolOption? _selectedLoxoneSubcontrol;
     private MqttLightOption? _selectedMqttLight;
 
@@ -88,7 +78,6 @@
 
     private bool IsValid =>
         !string.IsNullOrWhiteSpace(Model.Name) &&
-        !string.IsNullOrWhiteSpace(Model.Kind) &&
         !string.IsNullOrWhiteSpace(Model.LoxoneUuidAction) &&
         !string.IsNullOrWhiteSpace(Model.MqttTopic);
 

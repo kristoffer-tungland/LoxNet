@@ -54,9 +54,6 @@ public class MappingEditorModel
     public string Name { get; set; } = string.Empty;
 
     [Required]
-    public string Kind { get; set; } = "Dimmer";
-
-    [Required]
     public string MqttTopic { get; set; } = string.Empty;
 
     [Required]

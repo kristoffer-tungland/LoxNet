@@ -99,13 +99,9 @@ public class MinimalApiHost : IHostedService
         foreach (var mapping in _config.Mappings)
         {
             var status = "ok";
-            if (_loxoneService.Structure is null || !_loxoneService.Structure.TryGetControl(mapping.LoxoneUuidAction, out var control) || control is null)
+            if (_loxoneService.Structure is null || !_loxoneService.Structure.TryGetControl(mapping.LoxoneUuidAction, out _))
             {
                 status = "missing_subcontrol";
-            }
-            else if (!MatchesKind(control.Type, mapping.Kind))
-            {
-                status = "type_mismatch";
             }
 
             degraded |= status != "ok";
@@ -113,7 +109,6 @@ public class MinimalApiHost : IHostedService
             mappings.Add(new
             {
                 mapping.Name,
-                mapping.Kind,
                 mapping.MqttTopic,
                 mapping.LoxoneUuidAction,
                 status
@@ -236,16 +231,6 @@ public class MinimalApiHost : IHostedService
         {
             return Results.BadRequest(new { error = $"Failed to connect to MQTT: {ex.Message}" });
         }
-    }
-
-    private static bool MatchesKind(ControlType type, string kind)
-    {
-        return kind.ToLowerInvariant() switch
-        {
-            "dimmer" => type == ControlType.Dimmer,
-            "colorpickerv2" => type == ControlType.ColorPickerV2,
-            _ => false
-        };
     }
 
     private async Task<IResult> SaveConfigAsync(BridgeConfigDto payload)

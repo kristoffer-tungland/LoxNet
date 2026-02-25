@@ -42,8 +42,6 @@ public sealed record MappingSectionDto
 {
     public required string Name { get; init; }
 
-    public required string Kind { get; init; }
-
     public required string MqttTopic { get; init; }
 
     public required string LoxoneUuidAction { get; init; }

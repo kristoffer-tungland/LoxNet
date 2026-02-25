@@ -29,7 +29,6 @@ public static class BridgeConfigMapper
                 .Select(m => new MappingSectionDto
                 {
                     Name = m.Name,
-                    Kind = m.Kind,
                     MqttTopic = m.MqttTopic,
                     LoxoneUuidAction = m.LoxoneUuidAction
                 })
@@ -68,7 +67,6 @@ public static class BridgeConfigMapper
                 .Select(m => new MappingSection
                 {
                     Name = m.Name,
-                    Kind = m.Kind,
                     MqttTopic = m.MqttTopic,
                     LoxoneUuidAction = m.LoxoneUuidAction
                 })

@@ -145,7 +145,7 @@
                                     <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
                                         <FluentLabel Style="font-weight: 600">@mapping.Name</FluentLabel>
                                         <FluentLabel Typo="Typography.Body" Style="color: var(--neutral-foreground-hint);">
-                                            @mapping.Kind | MQTT: @mapping.MqttTopic
+                                            MQTT: @mapping.MqttTopic
                                         </FluentLabel>
                                         <FluentLabel Typo="Typography.Body" Style="color: var(--neutral-foreground-hint); font-size: 0.8em;">
                                             @GetMappingStatus(mapping)
@@ -256,7 +256,6 @@
                     Mappings = config.Mappings.Select(m => new MappingEditorModel
                     {
                         Name = m.Name,
-                        Kind = m.Kind,
                         MqttTopic = m.MqttTopic,
                         LoxoneUuidAction = m.LoxoneUuidAction
                     }).ToList()
@@ -402,7 +401,6 @@
         _model.Mappings.Add(new MappingEditorModel
         {
             Name = _newMapping.Name,
-            Kind = _newMapping.Kind,
             MqttTopic = _newMapping.MqttTopic,
             LoxoneUuidAction = _newMapping.LoxoneUuidAction
         });
@@ -462,7 +460,6 @@
                 Mappings = _model.Mappings.Select(m => new MappingSection
                 {
                     Name = m.Name,
-                    Kind = m.Kind,
                     MqttTopic = m.MqttTopic,
                     LoxoneUuidAction = m.LoxoneUuidAction
                 }).ToList()
@@ -495,6 +492,6 @@
 
     private string GetMappingStatus(MappingEditorModel mapping)
     {
-        return $"{mapping.Kind} → {mapping.MqttTopic}";
+        return $"{mapping.MqttTopic}";
     }
 }

@@ -1,15 +1,14 @@
-using LoxNet.Bridge.Config;
+using LoxNet;
 using LoxNet.Bridge.Sync;
 
 namespace LoxNet.Bridge.Loxone;
 
 public class LoxoneCommandBuilder
 {
-    public IReadOnlyList<string> BuildCommands(MappingSection mapping, NormalizedLightState state)
+    public IReadOnlyList<string> BuildCommands(ControlType controlType, NormalizedLightState state)
     {
         var commands = new List<string>();
-        var kind = mapping.Kind.ToLowerInvariant();
-        if (kind == "dimmer")
+        if (controlType == ControlType.Dimmer)
         {
             if (state.Power.HasValue)
             {
@@ -21,7 +20,7 @@ public class LoxoneCommandBuilder
                 commands.Add(state.BrightnessPct.Value.ToString());
             }
         }
-        else if (kind == "colorpickerv2")
+        else if (controlType == ControlType.ColorPickerV2)
         {
             if (state.Kelvin.HasValue && state.BrightnessPct.HasValue)
             {

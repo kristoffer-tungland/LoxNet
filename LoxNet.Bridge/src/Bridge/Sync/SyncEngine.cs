@@ -1,3 +1,4 @@
+using LoxNet;
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Loxone;
 using LoxNet.Bridge.Mqtt;
@@ -46,7 +47,12 @@ public class SyncEngine
             return Task.CompletedTask;
         }
 
-        var commands = _commandBuilder.BuildCommands(mapping, state);
+        if (!_loxoneService.TryGetControlType(mapping.LoxoneUuidAction, out var controlType))
+        {
+            _logger.LogWarning("Cannot build commands for {Name}: control type unknown", mapping.Name);
+            return Task.CompletedTask;
+        }
+        var commands = _commandBuilder.BuildCommands(controlType, state);
         return ForwardToLoxoneAsync(mapping, cache, commands, state, cancellationToken);
     }
 

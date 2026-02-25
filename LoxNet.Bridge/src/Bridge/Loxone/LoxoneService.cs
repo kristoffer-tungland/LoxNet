@@ -27,6 +27,17 @@ public class LoxoneService : ILoxoneCommandExecutor
 
     public LoxoneStructureState? Structure => _structure;
 
+    public bool TryGetControlType(string uuidAction, out ControlType controlType)
+    {
+        if (_structure is not null && _structure.TryGetControl(uuidAction, out var control) && control is not null)
+        {
+            controlType = control.Type;
+            return true;
+        }
+        controlType = ControlType.Unknown;
+        return false;
+    }
+
     public async Task StartAsync(BridgeConfig config, Func<string, NormalizedLightState, CancellationToken, Task> callback, CancellationToken cancellationToken)
     {
         _callback = callback;
@@ -81,13 +92,14 @@ public class LoxoneService : ILoxoneCommandExecutor
 
             _logger.LogInformation("Subscribed to state changes for mapping {Name} ({Uuid})", mapping.Name, mapping.LoxoneUuidAction);
 
+            var controlType = control.Type;
             control.StateChanged += (_, args) =>
             {
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        await HandleStateAsync(mapping, args.State, args.Value, cancellationToken).ConfigureAwait(false);
+                        await HandleStateAsync(mapping, controlType, args.State, args.Value, cancellationToken).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -102,7 +114,7 @@ public class LoxoneService : ILoxoneCommandExecutor
         }
     }
 
-    private Task HandleStateAsync(MappingSection mapping, string stateName, string value, CancellationToken cancellationToken)
+    private Task HandleStateAsync(MappingSection mapping, ControlType controlType, string stateName, string value, CancellationToken cancellationToken)
     {
         if (_callback is null)
         {
@@ -111,10 +123,10 @@ public class LoxoneService : ILoxoneCommandExecutor
 
         _logger.LogTrace("Loxone state change: {Name} state={State} value={Value}", mapping.Name, stateName, value);
 
-        var normalized = mapping.Kind.ToLowerInvariant() switch
+        var normalized = controlType switch
         {
-            "dimmer" => _stateParser.FromDimmer(stateName, value),
-            "colorpickerv2" => _stateParser.FromColorPicker(stateName, value),
+            ControlType.Dimmer => _stateParser.FromDimmer(stateName, value),
+            ControlType.ColorPickerV2 => _stateParser.FromColorPicker(stateName, value),
             _ => NormalizedLightState.Empty
         };
 

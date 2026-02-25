@@ -1,3 +1,4 @@
+using LoxNet;
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Loxone;
 using LoxNet.Bridge.Mqtt;
@@ -12,7 +13,6 @@ public class DedupingTests
     private readonly MappingSection _mapping = new()
     {
         Name = "Test",
-        Kind = "dimmer",
         LoxoneUuidAction = Guid.NewGuid().ToString(),
         MqttTopic = "zigbee2mqtt/test"
     };
@@ -61,6 +61,12 @@ public class DedupingTests
         {
             Commands.AddRange(commands);
             return Task.CompletedTask;
+        }
+
+        public bool TryGetControlType(string uuidAction, out ControlType controlType)
+        {
+            controlType = ControlType.Dimmer;
+            return true;
         }
     }
 
