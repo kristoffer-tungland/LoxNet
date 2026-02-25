@@ -1,0 +1,202 @@
+@page "/"
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavManager
+@inject ConnectionStatusService ConnectionStatus
+@implements IDisposable
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px;">
+
+    <FluentCard>
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+            <FluentLabel Typo="Typography.H4">Connection Status</FluentLabel>
+
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="20" Wrap="true">
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentBadge Appearance="@(ConnectionStatus.IsLoxoneConnected ? Appearance.Accent : Appearance.Neutral)">
+                        Miniserver: @(ConnectionStatus.IsLoxoneConnected ? "✓ Connected" : "✕ Disconnected")
+                    </FluentBadge>
+                    @if (!ConnectionStatus.IsLoxoneConnected)
+                    {
+                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
+                            @if (_isConnecting) { <FluentProgressRing Style="width: 14px; height: 14px; margin-right: 6px;" /> }
+                            Retry
+                        </FluentButton>
+                    }
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentBadge Appearance="@(ConnectionStatus.IsMqttConnected ? Appearance.Accent : Appearance.Neutral)">
+                        MQTT: @(ConnectionStatus.IsMqttConnected ? "✓ Connected" : "✕ Disconnected")
+                    </FluentBadge>
+                    @if (!ConnectionStatus.IsMqttConnected)
+                    {
+                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectMqttAsync" Disabled="@_isConnecting">
+                            @if (_isConnecting) { <FluentProgressRing Style="width: 14px; height: 14px; margin-right: 6px;" /> }
+                            Retry
+                        </FluentButton>
+                    }
+                </FluentStack>
+            </FluentStack>
+        </FluentStack>
+    </FluentCard>
+
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <FluentMessageBar Intent="@MessageIntent.Error">@_errorMessage</FluentMessageBar>
+    }
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <FluentMessageBar Intent="@MessageIntent.Success">@_statusMessage</FluentMessageBar>
+    }
+
+    @if (_health is not null)
+    {
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                    <FluentLabel Typo="Typography.H4">Bridge Health</FluentLabel>
+                    <FluentBadge Appearance="@(_health.Status == "ok" ? Appearance.Accent : Appearance.Neutral)">
+                        @_health.Status.ToUpperInvariant()
+                    </FluentBadge>
+                </FluentStack>
+
+                @if (_health.Mappings.Count > 0)
+                {
+                    <FluentDataGrid Items="@_health.Mappings.AsQueryable()" GridTemplateColumns="2fr 3fr 1fr">
+                        <PropertyColumn Property="@(m => m.Name)" Title="Name" />
+                        <PropertyColumn Property="@(m => m.MqttTopic)" Title="MQTT Topic" />
+                        <TemplateColumn Title="Status">
+                            <FluentBadge Appearance="@(context.Status == "ok" ? Appearance.Accent : Appearance.Neutral)">
+                                @context.Status
+                            </FluentBadge>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                }
+                else
+                {
+                    <FluentLabel Typo="Typography.Body" Style="font-style: italic; color: var(--neutral-foreground-hint);">
+                        No mappings configured.
+                    </FluentLabel>
+                }
+            </FluentStack>
+        </FluentCard>
+    }
+
+</FluentStack>
+
+@code {
+    private HealthResponse? _health;
+    private bool _isConnecting;
+    private string? _statusMessage;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionStatus.StartMonitoring();
+        ConnectionStatus.ConnectionStatusChanged += OnConnectionChanged;
+        await LoadHealthAsync();
+    }
+
+    public void Dispose()
+    {
+        ConnectionStatus.ConnectionStatusChanged -= OnConnectionChanged;
+        ConnectionStatus.StopMonitoring();
+    }
+
+    private void OnConnectionChanged(object? sender, EventArgs e)
+    {
+        InvokeAsync(async () =>
+        {
+            await LoadHealthAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadHealthAsync()
+    {
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var response = await client.GetAsync("/health");
+            if (response.IsSuccessStatusCode)
+            {
+                _health = await response.Content.ReadFromJsonAsync<HealthResponse>(
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+        }
+        catch { /* non-fatal; health card simply stays hidden */ }
+    }
+
+    private async Task ConnectLoxoneAsync()
+    {
+        _isConnecting = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            // Re-post persisted credentials from config
+            var configResp = await client.GetAsync("/config");
+            var cfg = await configResp.Content.ReadFromJsonAsync<BridgeConfig>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (cfg is null) return;
+            var content = System.Text.Json.JsonSerializer.Serialize(cfg.Loxone);
+            var resp = await client.PostAsync("/api/loxone/connect",
+                new StringContent(content, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode) _statusMessage = "Miniserver reconnected";
+            else _errorMessage = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isConnecting = false; StateHasChanged(); }
+    }
+
+    private async Task ConnectMqttAsync()
+    {
+        _isConnecting = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var configResp = await client.GetAsync("/config");
+            var cfg = await configResp.Content.ReadFromJsonAsync<BridgeConfig>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (cfg is null) return;
+            var content = System.Text.Json.JsonSerializer.Serialize(cfg.Mqtt);
+            var resp = await client.PostAsync("/api/mqtt/connect",
+                new StringContent(content, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode) _statusMessage = "MQTT reconnected";
+            else _errorMessage = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isConnecting = false; StateHasChanged(); }
+    }
+
+    // Local DTO shapes used only for deserialization on this page
+    private sealed class BridgeConfig
+    {
+        public object? Loxone { get; init; }
+        public object? Mqtt { get; init; }
+    }
+
+    private sealed class HealthResponse
+    {
+        public string Status { get; init; } = string.Empty;
+        public string Mqtt { get; init; } = string.Empty;
+        public string Loxone { get; init; } = string.Empty;
+        public List<MappingStatus> Mappings { get; init; } = new();
+    }
+
+    private sealed class MappingStatus
+    {
+        public string Name { get; init; } = string.Empty;
+        public string MqttTopic { get; init; } = string.Empty;
+        public string LoxoneUuidAction { get; init; } = string.Empty;
+        public string Status { get; init; } = string.Empty;
+    }
+}

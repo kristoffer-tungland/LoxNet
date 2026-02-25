@@ -1,19 +1,29 @@
 @inherits LayoutComponentBase
+@using RegularIcons = Microsoft.FluentUI.AspNetCore.Components.Icons.Regular.Size20
 
 <FluentDesignSystemProvider>
     <FluentDialogProvider />
     <FluentToastProvider MaxToastCount="10" Position="ToastPosition.TopRight" />
     <FluentMessageBarProvider />
 
-    <FluentLayout>
-        <FluentHeader>
-            <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
-                <FluentLabel Typo="Typography.H3">LoxNet Bridge Configuration</FluentLabel>
-                <FluentLabel Typo="Typography.Body">Miniserver, MQTT, and bridge mappings</FluentLabel>
-            </FluentStack>
+    <FluentLayout Style="height: 100vh;">
+        <FluentHeader Style="padding: 0 16px; display: flex; align-items: center; gap: 12px;">
+            <FluentLabel Typo="Typography.H4" Style="margin: 0;">LoxNet Bridge</FluentLabel>
+            <FluentLabel Typo="Typography.Body" Style="opacity: 0.7; font-size: 12px;">Miniserver · MQTT · Bridge</FluentLabel>
         </FluentHeader>
-        <FluentBodyContent>
-            @Body
-        </FluentBodyContent>
+
+        <FluentStack Orientation="Orientation.Horizontal" Style="flex: 1; overflow: hidden;">
+            <FluentNavMenu Width="220" Title="Navigation" Style="height: 100%; border-right: 1px solid var(--neutral-stroke-rest);">
+                <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new RegularIcons.Home())">Status</FluentNavLink>
+                <FluentNavLink Href="/loxone" Icon="@(new RegularIcons.PlugConnected())">Miniserver</FluentNavLink>
+                <FluentNavLink Href="/mqtt" Icon="@(new RegularIcons.ArrowSwap())">MQTT &amp; Mappings</FluentNavLink>
+                <FluentNavLink Href="/logs" Icon="@(new RegularIcons.TextBulletListSquare())">Logs</FluentNavLink>
+            </FluentNavMenu>
+
+            <FluentBodyContent Style="flex: 1; overflow-y: auto;">
+                @Body
+            </FluentBodyContent>
+        </FluentStack>
     </FluentLayout>
 </FluentDesignSystemProvider>
+

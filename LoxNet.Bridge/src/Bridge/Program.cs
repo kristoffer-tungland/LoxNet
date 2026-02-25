@@ -43,6 +43,8 @@ builder.Services.AddSingleton<LoxoneService>(sp =>
 builder.Services.AddSingleton<ILoxoneCommandExecutor>(sp => sp.GetRequiredService<LoxoneService>());
 builder.Services.AddSingleton<ConnectionStatusService>();
 builder.Services.AddSingleton<SyncEngine>();
+// Register in-memory log sink so UI pages can inject and subscribe to it
+builder.Services.AddSingleton(LoggingSetup.InMemorySink);
 
 // Register AppHost as a resolvable singleton AND as a hosted service
 builder.Services.AddSingleton<AppHost>();
@@ -83,6 +85,10 @@ app.MapGet("/api/loxone/subcontrols", ApiEndpoints.DiscoverLoxoneSubcontrols);
 app.MapGet("/api/mqtt/lights", ApiEndpoints.DiscoverMqttLightsAsync);
 app.MapPost("/api/loxone/connect", ApiEndpoints.ConnectLoxoneAsync);
 app.MapPost("/api/mqtt/connect", ApiEndpoints.ConnectMqttAsync);
+app.MapPost("/api/loxone/settings", ApiEndpoints.SaveLoxoneSettingsAsync);
+app.MapPost("/api/mqtt/settings", ApiEndpoints.SaveMqttSettingsAsync);
+app.MapPost("/api/sync/settings", ApiEndpoints.SaveSyncSettingsAsync);
+app.MapPost("/api/logging/level", ApiEndpoints.SaveLoggingSettingsAsync);
 app.MapGet("/config", (ConfigStore configStore) => Results.Ok(BridgeConfigMapper.ToDto(configStore.Current)));
 app.MapPost("/config", ApiEndpoints.SaveMappingsAsync);
 

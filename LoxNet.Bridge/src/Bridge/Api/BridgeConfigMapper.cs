@@ -25,6 +25,16 @@ public static class BridgeConfigMapper
                 ClientId = config.Mqtt.ClientId,
                 BaseTopic = config.Mqtt.BaseTopic
             },
+            Sync = new SyncSectionDto
+            {
+                BrightnessTolerancePct = config.Sync.BrightnessTolerancePct,
+                KelvinTolerance = config.Sync.KelvinTolerance,
+                SuppressEchoWindowMs = config.Sync.SuppressEchoWindowMs
+            },
+            Logging = new LoggingSectionDto
+            {
+                MinLevel = config.Logging.MinLevel
+            },
             Mappings = config.Mappings
                 .Select(m => new MappingSectionDto
                 {

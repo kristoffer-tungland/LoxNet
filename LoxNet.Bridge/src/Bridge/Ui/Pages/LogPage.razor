@@ -1,0 +1,174 @@
+@page "/logs"
+@using LoxNet.Bridge.Logging
+@inject InMemoryLogSink LogSink
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavManager
+@implements IDisposable
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px;">
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <FluentMessageBar Intent="@MessageIntent.Success">@_statusMessage</FluentMessageBar>
+    }
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <FluentMessageBar Intent="@MessageIntent.Error">@_errorMessage</FluentMessageBar>
+    }
+
+    @* ── Live log feed ── *@
+    <FluentCard Style="flex: 1;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <FluentLabel Typo="Typography.H4">Live Log</FluentLabel>
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Wrap="true">
+                    <FluentSelect TOption="string"
+                                  Items="@_levels"
+                                  @bind-SelectedOption="@_selectedLevel"
+                                  Style="min-width: 160px; position: relative; z-index: 100;">
+                    </FluentSelect>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="SaveLogLevelAsync" Disabled="@_isSaving">
+                        @if (_isSaving) { <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" /> }
+                        Apply
+                    </FluentButton>
+                    <FluentCheckbox @bind-Value="_autoScroll" Label="Auto-scroll" />
+                    <FluentButton Appearance="Appearance.Neutral" OnClick="ClearLog">Clear</FluentButton>
+                </FluentStack>
+            </FluentStack>
+
+            <div id="log-container" style="height: 500px; overflow-y: auto; background: var(--neutral-layer-1); border: 1px solid var(--neutral-stroke-rest); border-radius: 4px; padding: 8px; font-family: monospace; font-size: 12px;">
+                @foreach (var entry in _displayEntries.Where(e => LevelRank(e.Level) >= LevelRank(_selectedLevel)))
+                {
+                    <div style="margin-bottom: 2px; color: @LevelColor(entry.Level);">
+                        <span style="opacity: 0.7;">@entry.Timestamp.LocalDateTime.ToString("HH:mm:ss")</span>
+                        <span style="font-weight: bold; margin: 0 6px;">[@entry.Level.ToUpperInvariant()[..3]]</span>
+                        <span>@entry.Message</span>
+                        @if (!string.IsNullOrWhiteSpace(entry.Exception))
+                        {
+                            <div style="margin-left: 80px; white-space: pre-wrap; opacity: 0.8;">@entry.Exception</div>
+                        }
+                    </div>
+                }
+                <div id="log-bottom" />
+            </div>
+        </FluentStack>
+    </FluentCard>
+
+</FluentStack>
+
+@code {
+    private readonly List<string> _levels = new() { "Verbose", "Debug", "Information", "Warning", "Error", "Fatal" };
+    private string _selectedLevel = "Information";
+    private bool _isSaving;
+    private bool _autoScroll = true;
+    private string? _statusMessage;
+    private string? _errorMessage;
+    private readonly List<LogEntry> _displayEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Seed with already-buffered entries
+        _displayEntries.AddRange(LogSink.Entries);
+
+        // Subscribe to new entries pushed from the sink
+        LogSink.LogReceived += OnLogReceived;
+
+        // Load current log level from config
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var resp = await client.GetAsync("/config");
+            var cfg = await resp.Content.ReadFromJsonAsync<ConfigDto>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (!string.IsNullOrWhiteSpace(cfg?.Logging?.MinLevel))
+                _selectedLevel = NormalizeLevel(cfg.Logging.MinLevel);
+        }
+        catch { /* non-fatal */ }
+    }
+
+    public void Dispose()
+    {
+        LogSink.LogReceived -= OnLogReceived;
+    }
+
+    private void OnLogReceived(LogEntry entry)
+    {
+        InvokeAsync(() =>
+        {
+            _displayEntries.Add(entry);
+            // Keep list bounded to last 500 entries in UI
+            if (_displayEntries.Count > 500)
+                _displayEntries.RemoveAt(0);
+            StateHasChanged();
+        });
+    }
+
+    private void ClearLog()
+    {
+        _displayEntries.Clear();
+        StateHasChanged();
+    }
+
+    private async Task SaveLogLevelAsync()
+    {
+        _isSaving = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var json = System.Text.Json.JsonSerializer.Serialize(new { MinLevel = _selectedLevel });
+            var resp = await client.PostAsync("/api/logging/level",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode) _statusMessage = $"Log level set to {_selectedLevel}.";
+            else _errorMessage = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isSaving = false; StateHasChanged(); }
+    }
+
+    private static string LevelColor(string level) => level.ToLowerInvariant() switch
+    {
+        "verbose" => "var(--neutral-foreground-hint)",
+        "debug" => "#6a9fb5",
+        "information" => "var(--neutral-foreground-rest)",
+        "warning" => "#f0ad4e",
+        "error" => "#d9534f",
+        "fatal" => "#c0392b",
+        _ => "var(--neutral-foreground-rest)"
+    };
+
+    private static string NormalizeLevel(string raw) => raw.ToLowerInvariant() switch
+    {
+        "verbose" or "trace" => "Verbose",
+        "debug" => "Debug",
+        "information" or "info" => "Information",
+        "warning" or "warn" => "Warning",
+        "error" => "Error",
+        "critical" or "fatal" => "Fatal",
+        _ => "Information"
+    };
+
+    private static int LevelRank(string level) => level.ToLowerInvariant() switch
+    {
+        "verbose" => 0,
+        "debug" => 1,
+        "information" => 2,
+        "warning" => 3,
+        "error" => 4,
+        "fatal" => 5,
+        _ => 2
+    };
+
+    private sealed class ConfigDto
+    {
+        public LoggingDto? Logging { get; init; }
+    }
+    private sealed class LoggingDto
+    {
+        public string MinLevel { get; init; } = "Information";
+    }
+}

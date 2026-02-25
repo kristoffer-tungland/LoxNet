@@ -43,9 +43,12 @@ public class SyncEngine
 
         if (_comparer.AreEqual(state, cache.LastSentToLoxone))
         {
-            _logger.LogDebug("Ignoring MQTT echo for {Topic}", topic);
+            _logger.LogDebug("[{Name}] MQTT echo suppressed — state unchanged {State}", mapping.Name, FormatState(state));
             return Task.CompletedTask;
         }
+
+        _logger.LogInformation("[{Name}] MQTT → Loxone  {Prev} → {Next}",
+            mapping.Name, FormatState(cache.LastSentToLoxone), FormatState(state));
 
         if (!_loxoneService.TryGetControlType(mapping.LoxoneUuidAction, out var controlType))
         {
@@ -70,9 +73,12 @@ public class SyncEngine
 
         if (_comparer.AreEqual(state, cache.LastSentToMqtt))
         {
-            _logger.LogDebug("Ignoring Loxone echo for {Uuid}", uuidAction);
+            _logger.LogDebug("[{Name}] Loxone echo suppressed — state unchanged {State}", mapping.Name, FormatState(state));
             return Task.CompletedTask;
         }
+
+        _logger.LogInformation("[{Name}] Loxone → MQTT  {Prev} → {Next}",
+            mapping.Name, FormatState(cache.LastSentToMqtt), FormatState(state));
 
         return ForwardToMqttAsync(mapping, cache, state, cancellationToken);
     }
@@ -81,9 +87,12 @@ public class SyncEngine
     {
         if (commands.Count == 0)
         {
-            _logger.LogDebug("No Loxone commands generated for {Name}", mapping.Name);
+            _logger.LogDebug("[{Name}] No Loxone commands generated", mapping.Name);
             return;
         }
+
+        _logger.LogDebug("[{Name}] Sending {Count} Loxone command(s): {Commands}",
+            mapping.Name, commands.Count, string.Join(", ", commands));
 
         await _loxoneService.SendCommandsAsync(mapping, commands, cancellationToken).ConfigureAwait(false);
         cache.LastSentToLoxone = state;
@@ -100,11 +109,24 @@ public class SyncEngine
         var payload = _publisher.BuildPayload(state, cache.LastSentToMqtt);
         if (string.Equals(payload, "{}", StringComparison.Ordinal))
         {
-            _logger.LogDebug("MQTT payload empty for {Topic}", mapping.MqttTopic);
+            _logger.LogDebug("[{Name}] MQTT payload empty — nothing to publish", mapping.Name);
             return;
         }
 
+        _logger.LogDebug("[{Name}] Publishing MQTT payload: {Payload}", mapping.Name, payload);
+
         await _mqttPublisher.PublishAsync(mapping, state, cache.LastSentToMqtt, cancellationToken).ConfigureAwait(false);
         cache.LastSentToMqtt = state;
+    }
+
+    private static string FormatState(NormalizedLightState? s)
+    {
+        if (s is null) return "null";
+        var parts = new List<string>();
+        if (s.Power.HasValue)       parts.Add($"power={s.Power.Value}");
+        if (s.BrightnessPct.HasValue) parts.Add($"bri={s.BrightnessPct.Value}%");
+        if (s.Kelvin.HasValue)      parts.Add($"kelvin={s.Kelvin.Value}K");
+        if (s.Hsv.HasValue)         parts.Add($"hsv=({s.Hsv.Value.H},{s.Hsv.Value.S},{s.Hsv.Value.V})");
+        return parts.Count > 0 ? string.Join(" ", parts) : "empty";
     }
 }

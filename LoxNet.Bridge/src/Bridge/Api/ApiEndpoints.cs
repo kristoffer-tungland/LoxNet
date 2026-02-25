@@ -1,6 +1,7 @@
 using LoxNet.Bridge.Config;
 using LoxNet.Bridge.Loxone;
 using LoxNet.Bridge.Mqtt;
+using LoxNet.Bridge.Logging;
 using LoxNet;
 using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
@@ -132,6 +133,85 @@ public static class ApiEndpoints
         catch (Exception ex)
         {
             return Results.BadRequest(new { error = $"Failed to connect to MQTT: {ex.Message}" });
+        }
+    }
+
+    public static async Task<IResult> SaveLoxoneSettingsAsync(LoxoneSectionDto payload, AppHost appHost, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var section = new LoxoneSection
+            {
+                Host = payload.Host,
+                Port = payload.Port,
+                UseHttps = payload.UseHttps,
+                User = payload.User,
+                Password = payload.Password
+            };
+
+            await appHost.ReconnectLoxoneAsync(section, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(new { message = "Loxone settings saved and connected" });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = $"Failed to save Loxone settings: {ex.Message}" });
+        }
+    }
+
+    public static async Task<IResult> SaveMqttSettingsAsync(MqttSectionDto payload, AppHost appHost, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var section = new MqttSection
+            {
+                Host = payload.Host,
+                Port = payload.Port,
+                Username = payload.Username,
+                Password = payload.Password,
+                ClientId = payload.ClientId,
+                BaseTopic = payload.BaseTopic
+            };
+
+            await appHost.ReconnectMqttAsync(section, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(new { message = "MQTT settings saved and connected" });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = $"Failed to save MQTT settings: {ex.Message}" });
+        }
+    }
+
+    public static async Task<IResult> SaveSyncSettingsAsync(SyncSectionDto payload, AppHost appHost, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var section = new SyncSection
+            {
+                BrightnessTolerancePct = payload.BrightnessTolerancePct,
+                KelvinTolerance = payload.KelvinTolerance,
+                SuppressEchoWindowMs = payload.SuppressEchoWindowMs
+            };
+
+            await appHost.UpdateSyncAsync(section, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(new { message = "Sync settings saved" });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = $"Failed to save sync settings: {ex.Message}" });
+        }
+    }
+
+    public static async Task<IResult> SaveLoggingSettingsAsync(LoggingSectionDto payload, AppHost appHost, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var section = new LoggingSection { MinLevel = payload.MinLevel };
+            await appHost.UpdateLoggingAsync(section, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(new { message = "Log level updated" });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = $"Failed to update log level: {ex.Message}" });
         }
     }
 

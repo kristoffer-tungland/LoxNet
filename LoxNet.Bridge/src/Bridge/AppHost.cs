@@ -1,4 +1,5 @@
 using LoxNet.Bridge.Config;
+using LoxNet.Bridge.Logging;
 using LoxNet.Bridge.Loxone;
 using LoxNet.Bridge.Mqtt;
 using LoxNet.Bridge.Sync;
@@ -76,11 +77,35 @@ public class AppHost : IHostedService
         await _loxoneService.StartAsync(updated, HandleLoxoneStateAsync, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Persists updated sync settings to the YAML file. No service restart is needed
+    /// because <see cref="SyncEngine"/> reads tolerances from the config store on
+    /// every event.
+    /// </summary>
+    public async Task UpdateSyncAsync(SyncSection newSync, CancellationToken cancellationToken)
+    {
+        var updated = BuildConfig(sync: newSync);
+        await _configStore.UpdateAndSaveAsync(updated).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Persists updated logging settings to the YAML file and reconfigures the
+    /// Serilog logger with the new minimum level immediately.
+    /// </summary>
+    public async Task UpdateLoggingAsync(LoggingSection newLogging, CancellationToken cancellationToken)
+    {
+        var updated = BuildConfig(logging: newLogging);
+        await _configStore.UpdateAndSaveAsync(updated).ConfigureAwait(false);
+        Logging.LoggingSetup.SetMinimumLevel(newLogging.MinLevel);
+    }
+
     // Builds a new BridgeConfig by swapping only the supplied sections; everything
     // else is copied verbatim from the current in-memory config so nothing is lost.
     private BridgeConfig BuildConfig(
         LoxoneSection? loxone = null,
         MqttSection? mqtt = null,
+        SyncSection? sync = null,
+        LoggingSection? logging = null,
         List<MappingSection>? mappings = null)
     {
         var c = _configStore.Current;
@@ -88,8 +113,8 @@ public class AppHost : IHostedService
         {
             Loxone = loxone ?? c.Loxone,
             Mqtt = mqtt ?? c.Mqtt,
-            Sync = c.Sync,
-            Logging = c.Logging,
+            Sync = sync ?? c.Sync,
+            Logging = logging ?? c.Logging,
             Mappings = mappings ?? c.Mappings
         };
     }

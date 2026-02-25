@@ -10,6 +10,8 @@ public class ConfigEditorModel
     [Required]
     public MqttEditorModel Mqtt { get; set; } = new();
 
+    public SyncEditorModel Sync { get; set; } = new();
+
     public List<MappingEditorModel> Mappings { get; set; } = new();
 }
 
@@ -46,6 +48,18 @@ public class MqttEditorModel
     public string ClientId { get; set; } = "loxone-z2m-bridge";
 
     public string BaseTopic { get; set; } = "zigbee2mqtt";
+}
+
+public class SyncEditorModel
+{
+    [Range(0, 100)]
+    public int BrightnessTolerancePct { get; set; } = 1;
+
+    [Range(0, 1000)]
+    public int KelvinTolerance { get; set; } = 25;
+
+    [Range(0, 60000)]
+    public int SuppressEchoWindowMs { get; set; }
 }
 
 public class MappingEditorModel

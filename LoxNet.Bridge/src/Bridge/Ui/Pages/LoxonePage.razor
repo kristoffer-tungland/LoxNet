@@ -1,0 +1,133 @@
+@page "/loxone"
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavManager
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px;">
+
+    @if (_isLoading)
+    {
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center">
+                <FluentProgressRing />
+                <FluentLabel>Loading…</FluentLabel>
+            </FluentStack>
+        </FluentCard>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+        {
+            <FluentMessageBar Intent="@MessageIntent.Success">@_statusMessage</FluentMessageBar>
+        }
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <FluentMessageBar Intent="@MessageIntent.Error">@_errorMessage</FluentMessageBar>
+        }
+
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">Miniserver Connection</FluentLabel>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_model.Host" Label="Host" Required Style="min-width: 200px;" />
+                    <FluentNumberField @bind-Value="_model.Port" Label="Port" Required Style="width: 120px;" />
+                    <FluentTextField @bind-Value="_model.User" Label="User" Required Style="min-width: 150px;" />
+                    <FluentTextField @bind-Value="_model.Password" Label="Password" TextFieldType="TextFieldType.Password" Required Style="min-width: 150px;" />
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+                    <FluentCheckbox @bind-Value="_model.UseHttps" Label="Use HTTPS" />
+                </FluentStack>
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="SaveAsync" Disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" />
+                    }
+                    Save &amp; Connect
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+    }
+
+</FluentStack>
+
+@code {
+    private LoxoneEditorModel _model = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _statusMessage;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var response = await client.GetAsync("/config");
+            var cfg = await response.Content.ReadFromJsonAsync<ConfigDto>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (cfg?.Loxone is not null)
+            {
+                _model = new LoxoneEditorModel
+                {
+                    Host = cfg.Loxone.Host,
+                    Port = cfg.Loxone.Port,
+                    UseHttps = cfg.Loxone.UseHttps,
+                    User = cfg.Loxone.User,
+                    Password = cfg.Loxone.Password
+                };
+            }
+        }
+        catch (Exception ex) { _errorMessage = $"Failed to load config: {ex.Message}"; }
+        finally { _isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var json = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Host = _model.Host,
+                Port = _model.Port,
+                UseHttps = _model.UseHttps,
+                User = _model.User,
+                Password = _model.Password
+            });
+            var resp = await client.PostAsync("/api/loxone/settings",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode)
+                _statusMessage = "Miniserver settings saved and connected.";
+            else
+                _errorMessage = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isSaving = false; StateHasChanged(); }
+    }
+
+    private sealed class ConfigDto
+    {
+        public LoxoneEditorModel? Loxone { get; init; }
+    }
+
+    private sealed class LoxoneEditorModel
+    {
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; } = 80;
+        public bool UseHttps { get; set; }
+        public string User { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

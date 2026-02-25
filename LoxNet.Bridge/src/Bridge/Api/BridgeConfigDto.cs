@@ -6,6 +6,10 @@ public sealed record BridgeConfigDto
 
     public required MqttSectionDto Mqtt { get; init; }
 
+    public required SyncSectionDto Sync { get; init; }
+
+    public required LoggingSectionDto Logging { get; init; }
+
     public required IReadOnlyList<MappingSectionDto> Mappings { get; init; }
 }
 
@@ -45,6 +49,20 @@ public sealed record MappingSectionDto
     public required string MqttTopic { get; init; }
 
     public required string LoxoneUuidAction { get; init; }
+}
+
+public sealed record SyncSectionDto
+{
+    public int BrightnessTolerancePct { get; init; } = 1;
+
+    public int KelvinTolerance { get; init; } = 25;
+
+    public int SuppressEchoWindowMs { get; init; }
+}
+
+public sealed record LoggingSectionDto
+{
+    public required string MinLevel { get; init; }
 }
 
 public sealed record ConfigSaveResult

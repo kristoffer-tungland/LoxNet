@@ -1,0 +1,367 @@
+@page "/mqtt"
+@using LoxNet.Bridge.Ui.Components
+@using LoxNet.Bridge.Ui.Models
+@using LoxNet.Bridge.Api
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavManager
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20" Style="padding: 20px;">
+
+    @if (_isLoading)
+    {
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center">
+                <FluentProgressRing />
+                <FluentLabel>Loading…</FluentLabel>
+            </FluentStack>
+        </FluentCard>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+        {
+            <FluentMessageBar Intent="@MessageIntent.Success">@_statusMessage</FluentMessageBar>
+        }
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <FluentMessageBar Intent="@MessageIntent.Error">@_errorMessage</FluentMessageBar>
+        }
+
+        @* ── MQTT Broker ── *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">MQTT Broker</FluentLabel>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_mqtt.Host" Label="Host" Required Style="min-width: 200px;" />
+                    <FluentNumberField @bind-Value="_mqtt.Port" Label="Port" Required Style="width: 120px;" />
+                    <FluentTextField @bind-Value="_mqtt.Username" Label="Username (optional)" Style="min-width: 150px;" />
+                    <FluentTextField @bind-Value="_mqtt.Password" Label="Password (optional)" TextFieldType="TextFieldType.Password" Style="min-width: 150px;" />
+                </FluentStack>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentTextField @bind-Value="_mqtt.ClientId" Label="Client ID" Required Style="min-width: 200px;" />
+                    <FluentTextField @bind-Value="_mqtt.BaseTopic" Label="Base Topic" Required Style="min-width: 200px;" />
+                </FluentStack>
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="SaveMqttAsync" Disabled="@_isSaving">
+                    @if (_isSaving) { <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" /> }
+                    Save &amp; Connect
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+
+        @* ── Sync Settings ── *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentLabel Typo="Typography.H4">Sync Settings</FluentLabel>
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true">
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="4" Style="min-width: 180px;">
+                        <FluentNumberField @bind-Value="_sync.BrightnessTolerancePct" Label="Brightness Tolerance (%)" Min="0" Max="100" />
+                        <FluentLabel Typo="Typography.Body" Style="color: var(--neutral-foreground-hint); font-size: 11px;">
+                            Ignore brightness changes smaller than this percentage.
+                        </FluentLabel>
+                    </FluentStack>
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="4" Style="min-width: 180px;">
+                        <FluentNumberField @bind-Value="_sync.KelvinTolerance" Label="Kelvin Tolerance" Min="0" Max="1000" />
+                        <FluentLabel Typo="Typography.Body" Style="color: var(--neutral-foreground-hint); font-size: 11px;">
+                            Ignore color-temperature changes smaller than this value.
+                        </FluentLabel>
+                    </FluentStack>
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="4" Style="min-width: 180px;">
+                        <FluentNumberField @bind-Value="_sync.SuppressEchoWindowMs" Label="Echo Suppress Window (ms)" Min="0" Max="60000" />
+                        <FluentLabel Typo="Typography.Body" Style="color: var(--neutral-foreground-hint); font-size: 11px;">
+                            Suppress round-trip echoes for this duration after a command.
+                        </FluentLabel>
+                    </FluentStack>
+                </FluentStack>
+
+                <FluentButton Appearance="Appearance.Accent" OnClick="SaveSyncAsync" Disabled="@_isSaving">
+                    @if (_isSaving) { <FluentProgressRing Style="width: 16px; height: 16px; margin-right: 8px;" /> }
+                    Save Sync Settings
+                </FluentButton>
+            </FluentStack>
+        </FluentCard>
+
+        @* ── Mappings ── *@
+        <FluentCard>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Style="justify-content: space-between;">
+                    <FluentLabel Typo="Typography.H4">Light Mappings</FluentLabel>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="ShowAddMappingAsync">+ Add Mapping</FluentButton>
+                </FluentStack>
+
+                @if (_mappings.Count == 0)
+                {
+                    <FluentLabel Typo="Typography.Body" Style="font-style: italic; color: var(--neutral-foreground-hint);">
+                        No mappings configured. Click "Add Mapping" to create one.
+                    </FluentLabel>
+                }
+                else
+                {
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+                        @for (int i = 0; i < _mappings.Count; i++)
+                        {
+                            var idx = i;
+                            var m = _mappings[idx];
+                            <FluentCard Style="padding: 12px;">
+                                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Style="justify-content: space-between;">
+                                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+                                        <FluentLabel Typo="Typography.Body"><strong>@m.Name</strong></FluentLabel>
+                                        <FluentLabel Typo="Typography.Body" Style="color: var(--neutral-foreground-hint); font-size: 11px;">@m.MqttTopic → @m.LoxoneUuidAction</FluentLabel>
+                                    </FluentStack>
+                                    <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => RemoveMappingAsync(idx))">Remove</FluentButton>
+                                </FluentStack>
+                            </FluentCard>
+                        }
+                    </FluentStack>
+                }
+            </FluentStack>
+        </FluentCard>
+    }
+
+</FluentStack>
+
+@* Mapping Wizard Modal *@
+@if (_showMappingWizard)
+{
+    <FluentDialog @bind-Open="_showMappingWizard" Modal="true">
+        <MappingWizard Model="_newMapping"
+                       LoxoneSubcontrols="_loxoneSubcontrols"
+                       MqttLights="_mqttLights"
+                       OnSave="HandleMappingSaveAsync"
+                       OnCancel="HandleMappingCancel" />
+    </FluentDialog>
+}
+
+@code {
+    private MqttEditorModel _mqtt = new();
+    private SyncEditorModel _sync = new();
+    private List<MappingEditorModel> _mappings = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showMappingWizard;
+    private MappingEditorModel _newMapping = new();
+    private List<LoxoneSubcontrolOption> _loxoneSubcontrols = new();
+    private List<MqttLightOption> _mqttLights = new();
+    private string? _statusMessage;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var response = await client.GetAsync("/config");
+            var cfg = await response.Content.ReadFromJsonAsync<ConfigDto>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (cfg is not null)
+            {
+                _mqtt = new MqttEditorModel
+                {
+                    Host = cfg.Mqtt?.Host ?? string.Empty,
+                    Port = cfg.Mqtt?.Port ?? 1883,
+                    Username = cfg.Mqtt?.Username,
+                    Password = cfg.Mqtt?.Password,
+                    ClientId = cfg.Mqtt?.ClientId ?? "loxone-z2m-bridge",
+                    BaseTopic = cfg.Mqtt?.BaseTopic ?? "zigbee2mqtt"
+                };
+                _sync = new SyncEditorModel
+                {
+                    BrightnessTolerancePct = cfg.Sync?.BrightnessTolerancePct ?? 1,
+                    KelvinTolerance = cfg.Sync?.KelvinTolerance ?? 25,
+                    SuppressEchoWindowMs = cfg.Sync?.SuppressEchoWindowMs ?? 0
+                };
+                _mappings = (cfg.Mappings ?? Array.Empty<MappingDto>())
+                    .Select(m => new MappingEditorModel
+                    {
+                        Name = m.Name,
+                        MqttTopic = m.MqttTopic,
+                        LoxoneUuidAction = m.LoxoneUuidAction
+                    })
+                    .ToList();
+            }
+        }
+        catch (Exception ex) { _errorMessage = $"Failed to load config: {ex.Message}"; }
+        finally { _isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task SaveMqttAsync()
+    {
+        _isSaving = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var json = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Host = _mqtt.Host,
+                Port = _mqtt.Port,
+                Username = _mqtt.Username,
+                Password = _mqtt.Password,
+                ClientId = _mqtt.ClientId,
+                BaseTopic = _mqtt.BaseTopic
+            });
+            var resp = await client.PostAsync("/api/mqtt/settings",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode) _statusMessage = "MQTT settings saved and connected.";
+            else _errorMessage = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isSaving = false; StateHasChanged(); }
+    }
+
+    private async Task SaveSyncAsync()
+    {
+        _isSaving = true;
+        _statusMessage = null;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var json = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BrightnessTolerancePct = _sync.BrightnessTolerancePct,
+                KelvinTolerance = _sync.KelvinTolerance,
+                SuppressEchoWindowMs = _sync.SuppressEchoWindowMs
+            });
+            var resp = await client.PostAsync("/api/sync/settings",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode) _statusMessage = "Sync settings saved.";
+            else _errorMessage = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isSaving = false; StateHasChanged(); }
+    }
+
+    private async Task ShowAddMappingAsync()
+    {
+        _newMapping = new MappingEditorModel();
+        _statusMessage = null;
+        _errorMessage = null;
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var loxResp = await client.GetAsync("/api/loxone/subcontrols");
+            _loxoneSubcontrols = await loxResp.Content.ReadFromJsonAsync<List<LoxoneSubcontrolOption>>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+
+            var mqttResp = await client.GetAsync("/api/mqtt/lights");
+            var result = await mqttResp.Content.ReadFromJsonAsync<MqttLightsDiscoveryResult>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            _mqttLights = result?.Lights.Select(d => new MqttLightOption
+            {
+                FriendlyName = d.FriendlyName,
+                Topic = d.Topic,
+                Model = d.Model
+            }).ToList() ?? new();
+
+            _showMappingWizard = true;
+        }
+        catch (Exception ex) { _errorMessage = $"Failed to load device lists: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    private async Task HandleMappingSaveAsync(MappingEditorModel saved)
+    {
+        _mappings.Add(new MappingEditorModel
+        {
+            Name = saved.Name,
+            MqttTopic = saved.MqttTopic,
+            LoxoneUuidAction = saved.LoxoneUuidAction
+        });
+        _showMappingWizard = false;
+        await PersistMappingsAsync();
+        _statusMessage = $"Mapping '{saved.Name}' added.";
+        StateHasChanged();
+    }
+
+    private void HandleMappingCancel()
+    {
+        _showMappingWizard = false;
+        StateHasChanged();
+    }
+
+    private async Task RemoveMappingAsync(int index)
+    {
+        var name = _mappings[index].Name;
+        _mappings.RemoveAt(index);
+        await PersistMappingsAsync();
+        _statusMessage = $"Mapping '{name}' removed.";
+        StateHasChanged();
+    }
+
+    private async Task PersistMappingsAsync()
+    {
+        try
+        {
+            using var client = HttpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(NavManager.BaseUri);
+            var json = System.Text.Json.JsonSerializer.Serialize(
+                _mappings.Select(m => new { Name = m.Name, MqttTopic = m.MqttTopic, LoxoneUuidAction = m.LoxoneUuidAction }));
+            var resp = await client.PostAsync("/config",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+            if (!resp.IsSuccessStatusCode)
+                _errorMessage = $"Failed to save mappings: {await resp.Content.ReadAsStringAsync()}";
+        }
+        catch (Exception ex) { _errorMessage = $"Failed to save mappings: {ex.Message}"; }
+    }
+
+    // Local DTOs
+    private sealed class ConfigDto
+    {
+        public MqttDto? Mqtt { get; init; }
+        public SyncDto? Sync { get; init; }
+        public MappingDto[]? Mappings { get; init; }
+    }
+    private sealed class MqttDto
+    {
+        public string Host { get; init; } = string.Empty;
+        public int Port { get; init; } = 1883;
+        public string? Username { get; init; }
+        public string? Password { get; init; }
+        public string ClientId { get; init; } = "loxone-z2m-bridge";
+        public string BaseTopic { get; init; } = "zigbee2mqtt";
+    }
+    private sealed class SyncDto
+    {
+        public int BrightnessTolerancePct { get; init; } = 1;
+        public int KelvinTolerance { get; init; } = 25;
+        public int SuppressEchoWindowMs { get; init; }
+    }
+    private sealed class MappingDto
+    {
+        public string Name { get; init; } = string.Empty;
+        public string MqttTopic { get; init; } = string.Empty;
+        public string LoxoneUuidAction { get; init; } = string.Empty;
+    }
+    private sealed class MqttEditorModel
+    {
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; } = 1883;
+        public string? Username { get; set; }
+        public string? Password { get; set; }
+        public string ClientId { get; set; } = "loxone-z2m-bridge";
+        public string BaseTopic { get; set; } = "zigbee2mqtt";
+    }
+    private sealed class SyncEditorModel
+    {
+        public int BrightnessTolerancePct { get; set; } = 1;
+        public int KelvinTolerance { get; set; } = 25;
+        public int SuppressEchoWindowMs { get; set; }
+    }
+}
