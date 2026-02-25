@@ -237,7 +237,7 @@ public class MinimalApiHost : IHostedService
     {
         try
         {
-            var updatedConfig = BridgeConfigMapper.ToConfig(payload, _config.Sync);
+            var updatedConfig = BridgeConfigMapper.ToConfig(payload, _config);
             updatedConfig.Validate();
             var yaml = ConfigYamlSerializer.Serialize(updatedConfig);
             var directory = Path.GetDirectoryName(_configFileSettings.Path);

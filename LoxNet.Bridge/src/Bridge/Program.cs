@@ -19,8 +19,9 @@ var bridgeConfig = await ConfigLoader.LoadAsync(builder.Configuration, configPat
 LoggingSetup.Configure(builder.Logging, builder.Configuration, bridgeConfig.Logging);
 
 // Register bridge services
-builder.Services.AddSingleton(bridgeConfig);
-builder.Services.AddSingleton(new ConfigFileSettings(configPath));
+var configFileSettings = new ConfigFileSettings(configPath);
+builder.Services.AddSingleton(new ConfigStore(bridgeConfig, configFileSettings));
+builder.Services.AddSingleton(configFileSettings);
 builder.Services.AddSingleton<StateCache>();
 builder.Services.AddSingleton<StateComparer>();
 builder.Services.AddSingleton<Converters>();
@@ -43,8 +44,9 @@ builder.Services.AddSingleton<ILoxoneCommandExecutor>(sp => sp.GetRequiredServic
 builder.Services.AddSingleton<ConnectionStatusService>();
 builder.Services.AddSingleton<SyncEngine>();
 
-// Register bridge as hosted service
-builder.Services.AddHostedService<AppHost>();
+// Register AppHost as a resolvable singleton AND as a hosted service
+builder.Services.AddSingleton<AppHost>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AppHost>());
 
 // Register web UI services
 builder.Services.AddRazorComponents()
@@ -81,7 +83,7 @@ app.MapGet("/api/loxone/subcontrols", ApiEndpoints.DiscoverLoxoneSubcontrols);
 app.MapGet("/api/mqtt/lights", ApiEndpoints.DiscoverMqttLightsAsync);
 app.MapPost("/api/loxone/connect", ApiEndpoints.ConnectLoxoneAsync);
 app.MapPost("/api/mqtt/connect", ApiEndpoints.ConnectMqttAsync);
-app.MapGet("/config", (BridgeConfig config) => Results.Ok(BridgeConfigMapper.ToDto(config)));
-app.MapPost("/config", ApiEndpoints.SaveConfigAsync);
+app.MapGet("/config", (ConfigStore configStore) => Results.Ok(BridgeConfigMapper.ToDto(configStore.Current)));
+app.MapPost("/config", ApiEndpoints.SaveMappingsAsync);
 
 await app.RunAsync();

@@ -21,11 +21,12 @@ public class DedupingTests
     public async Task MqttEchoIsSuppressed()
     {
         var config = new BridgeConfig { Mappings = new List<MappingSection> { _mapping } };
+        var configStore = new ConfigStore(config, new ConfigFileSettings(Path.GetTempFileName()));
         var cache = new StateCache();
-        var comparer = new StateComparer(config);
+        var comparer = new StateComparer(configStore);
         var fakeLoxone = new FakeLoxoneExecutor();
         var fakePublisher = new FakeMqttPublisher();
-        var engine = new SyncEngine(config, cache, comparer, new LoxoneCommandBuilder(), fakeLoxone, new Z2mPublisher(new Converters()), fakePublisher, NullLogger<SyncEngine>.Instance);
+        var engine = new SyncEngine(configStore, cache, comparer, new LoxoneCommandBuilder(), fakeLoxone, new Z2mPublisher(new Converters()), fakePublisher, NullLogger<SyncEngine>.Instance);
 
         var state = new NormalizedLightState(true, 50, null, null);
         cache.GetOrCreate(_mapping).LastSentToLoxone = state;
@@ -39,11 +40,12 @@ public class DedupingTests
     public async Task LoxoneEchoIsSuppressed()
     {
         var config = new BridgeConfig { Mappings = new List<MappingSection> { _mapping } };
+        var configStore = new ConfigStore(config, new ConfigFileSettings(Path.GetTempFileName()));
         var cache = new StateCache();
-        var comparer = new StateComparer(config);
+        var comparer = new StateComparer(configStore);
         var fakeLoxone = new FakeLoxoneExecutor();
         var fakePublisher = new FakeMqttPublisher();
-        var engine = new SyncEngine(config, cache, comparer, new LoxoneCommandBuilder(), fakeLoxone, new Z2mPublisher(new Converters()), fakePublisher, NullLogger<SyncEngine>.Instance);
+        var engine = new SyncEngine(configStore, cache, comparer, new LoxoneCommandBuilder(), fakeLoxone, new Z2mPublisher(new Converters()), fakePublisher, NullLogger<SyncEngine>.Instance);
 
         var state = new NormalizedLightState(true, 50, null, null);
         cache.GetOrCreate(_mapping).LastSentToMqtt = state;

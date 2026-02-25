@@ -9,14 +9,14 @@ namespace LoxNet.Bridge.Api;
 
 public static class ApiEndpoints
 {
-    public static object BuildHealth(MqttService mqttService, LoxoneService loxoneService, BridgeConfig config)
+    public static object BuildHealth(MqttService mqttService, LoxoneService loxoneService, ConfigStore configStore)
     {
         var mqttStatus = mqttService.Client.IsConnected ? "connected" : "disconnected";
         var loxoneStatus = loxoneService.Client is not null ? "connected" : "disconnected";
         var mappings = new List<object>();
         var degraded = false;
         
-        foreach (var mapping in config.Mappings)
+        foreach (var mapping in configStore.Current.Mappings)
         {
             var status = "ok";
             if (loxoneService.Structure is null || !loxoneService.Structure.TryGetControl(mapping.LoxoneUuidAction, out _))
@@ -90,29 +90,20 @@ public static class ApiEndpoints
         return Results.Ok(new MqttLightsDiscoveryResult { Lights = lights });
     }
 
-    public static async Task<IResult> ConnectLoxoneAsync(LoxoneSectionDto payload, LoxoneService loxoneService, CancellationToken cancellationToken)
+    public static async Task<IResult> ConnectLoxoneAsync(LoxoneSectionDto payload, AppHost appHost, CancellationToken cancellationToken)
     {
         try
         {
-            // Stop existing connection if any
-            await loxoneService.StopAsync(cancellationToken).ConfigureAwait(false);
-
-            // Create temporary config with new credentials
-            var tempConfig = new BridgeConfig
+            var section = new LoxoneSection
             {
-                Loxone = new LoxoneSection
-                {
-                    Host = payload.Host,
-                    Port = payload.Port,
-                    UseHttps = payload.UseHttps,
-                    User = payload.User,
-                    Password = payload.Password
-                }
+                Host = payload.Host,
+                Port = payload.Port,
+                UseHttps = payload.UseHttps,
+                User = payload.User,
+                Password = payload.Password
             };
 
-            // Start connection with empty callback (no sync)
-            await loxoneService.StartAsync(tempConfig, (_, _, _) => Task.CompletedTask, cancellationToken).ConfigureAwait(false);
-
+            await appHost.ReconnectLoxoneAsync(section, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new { message = "Loxone connection established successfully" });
         }
         catch (Exception ex)
@@ -121,30 +112,21 @@ public static class ApiEndpoints
         }
     }
 
-    public static async Task<IResult> ConnectMqttAsync(MqttSectionDto payload, MqttService mqttService, CancellationToken cancellationToken)
+    public static async Task<IResult> ConnectMqttAsync(MqttSectionDto payload, AppHost appHost, CancellationToken cancellationToken)
     {
         try
         {
-            // Stop existing connection if any
-            await mqttService.StopAsync(cancellationToken).ConfigureAwait(false);
-
-            // Create temporary config with new credentials
-            var tempConfig = new BridgeConfig
+            var section = new MqttSection
             {
-                Mqtt = new MqttSection
-                {
-                    Host = payload.Host,
-                    Port = payload.Port,
-                    Username = payload.Username,
-                    Password = payload.Password,
-                    ClientId = payload.ClientId,
-                    BaseTopic = payload.BaseTopic
-                }
+                Host = payload.Host,
+                Port = payload.Port,
+                Username = payload.Username,
+                Password = payload.Password,
+                ClientId = payload.ClientId,
+                BaseTopic = payload.BaseTopic
             };
 
-            // Start connection with empty callback (no sync)
-            await mqttService.StartAsync(tempConfig, (_, _, _) => Task.CompletedTask, cancellationToken).ConfigureAwait(false);
-
+            await appHost.ReconnectMqttAsync(section, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new { message = "MQTT connection established successfully" });
         }
         catch (Exception ex)
@@ -153,27 +135,39 @@ public static class ApiEndpoints
         }
     }
 
-    public static async Task<IResult> SaveConfigAsync(BridgeConfigDto payload, BridgeConfig currentConfig, ConfigFileSettings configFileSettings)
+    public static async Task<IResult> SaveMappingsAsync(MappingSectionDto[] payload, AppHost appHost, CancellationToken cancellationToken)
     {
         try
         {
-            var updatedConfig = BridgeConfigMapper.ToConfig(payload, currentConfig.Sync);
-            updatedConfig.Validate();
-            var yaml = ConfigYamlSerializer.Serialize(updatedConfig);
-            var directory = Path.GetDirectoryName(configFileSettings.Path);
-            if (!string.IsNullOrWhiteSpace(directory))
+            var mappings = payload
+                .Select(m => new MappingSection
+                {
+                    Name = m.Name,
+                    MqttTopic = m.MqttTopic,
+                    LoxoneUuidAction = m.LoxoneUuidAction
+                })
+                .ToList();
+
+            // Validate each mapping individually (avoids requiring Loxone/Mqtt fields)
+            foreach (var m in mappings)
             {
-                Directory.CreateDirectory(directory);
+                Validator.ValidateObject(m, new ValidationContext(m), true);
             }
 
-            await File.WriteAllTextAsync(configFileSettings.Path, yaml).ConfigureAwait(false);
+            var duplicateUuid = mappings
+                .GroupBy(m => m.LoxoneUuidAction, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(g => g.Count() > 1)?.Key;
+            if (duplicateUuid is not null)
+                throw new ValidationException($"Duplicate loxoneUuidAction detected: {duplicateUuid}");
 
-            return Results.Ok(new ConfigSaveResult
-            {
-                Message = "Configuration saved. Restart the bridge to apply the new settings.",
-                Path = configFileSettings.Path,
-                RequiresRestart = true
-            });
+            var duplicateTopic = mappings
+                .GroupBy(m => m.MqttTopic, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(g => g.Count() > 1)?.Key;
+            if (duplicateTopic is not null)
+                throw new ValidationException($"Duplicate mqttTopic detected: {duplicateTopic}");
+
+            await appHost.ApplyMappingsAsync(mappings, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(new { message = "Mappings saved and applied" });
         }
         catch (ValidationException ex)
         {

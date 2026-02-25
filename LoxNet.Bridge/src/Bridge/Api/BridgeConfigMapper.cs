@@ -36,7 +36,12 @@ public static class BridgeConfigMapper
         };
     }
 
-    public static BridgeConfig ToConfig(BridgeConfigDto dto, SyncSection syncSection)
+    /// <summary>
+    /// Builds a new <see cref="BridgeConfig"/> from <paramref name="dto"/>, preserving every
+    /// section that is not exposed in the UI (e.g. <c>Sync</c>, <c>Logging</c>) from
+    /// <paramref name="current"/> so they are never silently reset.
+    /// </summary>
+    public static BridgeConfig ToConfig(BridgeConfigDto dto, BridgeConfig current)
     {
         return new BridgeConfig
         {
@@ -59,9 +64,13 @@ public static class BridgeConfigMapper
             },
             Sync = new SyncSection
             {
-                BrightnessTolerancePct = syncSection.BrightnessTolerancePct,
-                KelvinTolerance = syncSection.KelvinTolerance,
-                SuppressEchoWindowMs = syncSection.SuppressEchoWindowMs
+                BrightnessTolerancePct = current.Sync.BrightnessTolerancePct,
+                KelvinTolerance = current.Sync.KelvinTolerance,
+                SuppressEchoWindowMs = current.Sync.SuppressEchoWindowMs
+            },
+            Logging = new LoggingSection
+            {
+                MinLevel = current.Logging.MinLevel
             },
             Mappings = dto.Mappings
                 .Select(m => new MappingSection

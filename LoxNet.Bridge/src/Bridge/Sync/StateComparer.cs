@@ -4,11 +4,11 @@ namespace LoxNet.Bridge.Sync;
 
 public class StateComparer
 {
-    private readonly BridgeConfig _config;
+    private readonly ConfigStore _configStore;
 
-    public StateComparer(BridgeConfig config)
+    public StateComparer(ConfigStore configStore)
     {
-        _config = config;
+        _configStore = configStore;
     }
 
     public bool AreEqual(NormalizedLightState left, NormalizedLightState right)
@@ -18,12 +18,12 @@ public class StateComparer
             return false;
         }
 
-        if (!EqualWithTolerance(left.BrightnessPct, right.BrightnessPct, _config.Sync.BrightnessTolerancePct))
+        if (!EqualWithTolerance(left.BrightnessPct, right.BrightnessPct, _configStore.Current.Sync.BrightnessTolerancePct))
         {
             return false;
         }
 
-        if (!EqualWithTolerance(left.Kelvin, right.Kelvin, _config.Sync.KelvinTolerance))
+        if (!EqualWithTolerance(left.Kelvin, right.Kelvin, _configStore.Current.Sync.KelvinTolerance))
         {
             return false;
         }

@@ -8,7 +8,7 @@ namespace LoxNet.Bridge.Sync;
 
 public class SyncEngine
 {
-    private readonly BridgeConfig _config;
+    private readonly ConfigStore _configStore;
     private readonly StateCache _cache;
     private readonly StateComparer _comparer;
     private readonly LoxoneCommandBuilder _commandBuilder;
@@ -17,9 +17,9 @@ public class SyncEngine
     private readonly IMqttPublisher _mqttPublisher;
     private readonly ILogger<SyncEngine> _logger;
 
-    public SyncEngine(BridgeConfig config, StateCache cache, StateComparer comparer, LoxoneCommandBuilder commandBuilder, ILoxoneCommandExecutor loxoneService, Z2mPublisher publisher, IMqttPublisher mqttPublisher, ILogger<SyncEngine> logger)
+    public SyncEngine(ConfigStore configStore, StateCache cache, StateComparer comparer, LoxoneCommandBuilder commandBuilder, ILoxoneCommandExecutor loxoneService, Z2mPublisher publisher, IMqttPublisher mqttPublisher, ILogger<SyncEngine> logger)
     {
-        _config = config;
+        _configStore = configStore;
         _cache = cache;
         _comparer = comparer;
         _commandBuilder = commandBuilder;
@@ -31,7 +31,7 @@ public class SyncEngine
 
     public Task ProcessMqttAsync(string topic, NormalizedLightState state, CancellationToken cancellationToken)
     {
-        var mapping = _config.Mappings.FirstOrDefault(m => string.Equals(m.MqttTopic, topic, StringComparison.OrdinalIgnoreCase));
+        var mapping = _configStore.Current.Mappings.FirstOrDefault(m => string.Equals(m.MqttTopic, topic, StringComparison.OrdinalIgnoreCase));
         if (mapping is null)
         {
             _logger.LogDebug("Ignoring MQTT topic {Topic} without mapping", topic);
@@ -58,7 +58,7 @@ public class SyncEngine
 
     public Task ProcessLoxoneAsync(string uuidAction, NormalizedLightState state, CancellationToken cancellationToken)
     {
-        var mapping = _config.Mappings.FirstOrDefault(m => string.Equals(m.LoxoneUuidAction, uuidAction, StringComparison.OrdinalIgnoreCase));
+        var mapping = _configStore.Current.Mappings.FirstOrDefault(m => string.Equals(m.LoxoneUuidAction, uuidAction, StringComparison.OrdinalIgnoreCase));
         if (mapping is null)
         {
             _logger.LogDebug("Ignoring Loxone state for unmapped uuidAction {Uuid}", uuidAction);
