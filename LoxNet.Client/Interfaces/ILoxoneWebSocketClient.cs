@@ -23,6 +23,11 @@ public interface ILoxoneWebSocketClient : IAsyncDisposable
     event EventHandler<string>? MessageReceived;
 
     /// <summary>
+    /// Raised when the WebSocket connection is lost unexpectedly (not on intentional close).
+    /// </summary>
+    event EventHandler? Disconnected;
+
+    /// <summary>
     /// Starts listening for incoming messages.
     /// </summary>
     Task ListenAsync(CancellationToken cancellationToken = default);

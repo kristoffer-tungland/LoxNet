@@ -29,6 +29,11 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
     
     public event EventHandler<string>? MessageReceived;
 
+    /// <summary>
+    /// Raised when the WebSocket connection is lost (not raised for intentional closes).
+    /// </summary>
+    public event EventHandler? Disconnected;
+
     public LoxoneWebSocketClient(ILoxoneHttpClient httpClient)
         : this(LoggingExtensions.CreateChildLogger<LoxoneWebSocketClient>(), httpClient)
     {
@@ -62,14 +67,22 @@ public class LoxoneWebSocketClient : ILoxoneWebSocketClient
             SingleWriter = true    // Single writer (the message handler)
         });
 
-        // Configure Websocket.Client for better reliability
-        _wsClient.ReconnectTimeout = null; // disable auto-reconnect for authentication flow
-        _wsClient.ErrorReconnectTimeout = TimeSpan.FromSeconds(5); // but reconnect on errors
+        // Disable all automatic reconnect — the application layer owns full reconnect
+        // (including re-authentication). Bare TCP reconnects without Loxone auth cause
+        // the Miniserver to respond with 420 Policy Not Fulfilled in a tight loop.
+        _wsClient.ReconnectTimeout = null;
+        _wsClient.ErrorReconnectTimeout = null;
 
-        // Monitor disconnections for diagnostics
+        // Monitor disconnections for diagnostics and raise the Disconnected event so
+        // consumers (e.g. LoxoneService) can trigger a full application-level reconnect.
         _wsClient.DisconnectionHappened.Subscribe(info =>
         {
             _logger.LogWarning("[WebSocket] Disconnected: Status={Status}, Reason={Reason}, Exception={ExceptionMessage}", info.CloseStatus, info.CloseStatusDescription, info.Exception?.Message);
+            // Only fire the event for unexpected drops, not intentional CloseAsync calls.
+            if (info.Type != DisconnectionType.ByUser && info.Type != DisconnectionType.Exit)
+            {
+                Disconnected?.Invoke(this, EventArgs.Empty);
+            }
         });
 
         _wsClient.MessageReceived.Subscribe(msg =>

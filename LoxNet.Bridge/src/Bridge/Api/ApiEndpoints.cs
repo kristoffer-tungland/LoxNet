@@ -13,7 +13,13 @@ public static class ApiEndpoints
     public static object BuildHealth(MqttService mqttService, LoxoneService loxoneService, ConfigStore configStore)
     {
         var mqttStatus = mqttService.Client.IsConnected ? "connected" : "disconnected";
-        var loxoneStatus = loxoneService.Client is not null ? "connected" : "disconnected";
+        var loxoneStatus = loxoneService.State switch
+        {
+            LoxNet.Bridge.Loxone.LoxoneConnectionState.Connected => "connected",
+            LoxNet.Bridge.Loxone.LoxoneConnectionState.Reconnecting => "reconnecting",
+            LoxNet.Bridge.Loxone.LoxoneConnectionState.Connecting => "connecting",
+            _ => "disconnected"
+        };
         var mappings = new List<object>();
         var degraded = false;
         
@@ -42,6 +48,7 @@ public static class ApiEndpoints
             status = bridgeStatus,
             mqtt = mqttStatus,
             loxone = loxoneStatus,
+            loxoneReconnectAttempts = loxoneService.ReconnectAttempts,
             mappings
         };
     }

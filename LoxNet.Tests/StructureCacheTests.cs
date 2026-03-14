@@ -67,6 +67,7 @@ public class StructureCacheTests
     private class MockWebSocketClient : ILoxoneWebSocketClient
     {
         public event EventHandler<string>? MessageReceived;
+        public event EventHandler? Disconnected;
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task PrepareEncryptionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

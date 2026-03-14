@@ -1,4 +1,5 @@
 @page "/"
+@using LoxNet.Bridge.Loxone
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavManager
 @inject ConnectionStatusService ConnectionStatus
@@ -11,16 +12,52 @@
             <FluentLabel Typo="Typography.H4">Connection Status</FluentLabel>
 
             <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="20" Wrap="true">
-                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
-                    <FluentBadge Appearance="@(ConnectionStatus.IsLoxoneConnected ? Appearance.Accent : Appearance.Neutral)">
-                        Miniserver: @(ConnectionStatus.IsLoxoneConnected ? "✓ Connected" : "✕ Disconnected")
-                    </FluentBadge>
-                    @if (!ConnectionStatus.IsLoxoneConnected)
+
+                @{
+                    var loxoneState = ConnectionStatus.LoxoneState;
+                    var loxoneAppearance = loxoneState switch
                     {
-                        <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
-                            @if (_isConnecting) { <FluentProgressRing Style="width: 14px; height: 14px; margin-right: 6px;" /> }
-                            Retry
-                        </FluentButton>
+                        LoxoneConnectionState.Connected    => Appearance.Accent,
+                        LoxoneConnectionState.Reconnecting => Appearance.Neutral,
+                        LoxoneConnectionState.Connecting   => Appearance.Neutral,
+                        _                                  => Appearance.Neutral
+                    };
+                    var loxoneLabel = loxoneState switch
+                    {
+                        LoxoneConnectionState.Connected    => "✓ Connected",
+                        LoxoneConnectionState.Reconnecting => "↻ Reconnecting…",
+                        LoxoneConnectionState.Connecting   => "⟳ Connecting…",
+                        _                                  => "✕ Disconnected"
+                    };
+                }
+
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                    <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="8">
+                        <FluentBadge Appearance="@loxoneAppearance"
+                                     Style="@(loxoneState == LoxoneConnectionState.Reconnecting ? "color: var(--warning-foreground, #b45309);" : "")">
+                            @if (loxoneState is LoxoneConnectionState.Reconnecting or LoxoneConnectionState.Connecting)
+                            {
+                                <FluentProgressRing Style="width: 12px; height: 12px; margin-right: 4px;" />
+                            }
+                            Miniserver: @loxoneLabel
+                        </FluentBadge>
+                        @if (loxoneState == LoxoneConnectionState.Disconnected)
+                        {
+                            <FluentButton Appearance="Appearance.Lightweight" OnClick="ConnectLoxoneAsync" Disabled="@_isConnecting">
+                                @if (_isConnecting) { <FluentProgressRing Style="width: 14px; height: 14px; margin-right: 6px;" /> }
+                                Retry
+                            </FluentButton>
+                        }
+                    </FluentStack>
+                    @if (loxoneState == LoxoneConnectionState.Reconnecting)
+                    {
+                        <FluentLabel Typo="Typography.Body" Style="font-size: 0.78rem; color: var(--neutral-foreground-hint);">
+                            Attempt @ConnectionStatus.LoxoneReconnectAttempts
+                            @if (ConnectionStatus.LoxoneLastDisconnectedAt.HasValue)
+                            {
+                                <text> — disconnected @FormatAgo(ConnectionStatus.LoxoneLastDisconnectedAt.Value)</text>
+                            }
+                        </FluentLabel>
                     }
                 </FluentStack>
 
@@ -105,10 +142,16 @@
 
     private void OnConnectionChanged(object? sender, EventArgs e)
     {
-        InvokeAsync(async () =>
+        InvokeAsync(() =>
         {
-            await LoadHealthAsync();
             StateHasChanged();
+            // Reload the full health card (mappings grid) in the background, but don't
+            // block the immediate re-render — state badges already read from ConnectionStatus.
+            _ = Task.Run(async () =>
+            {
+                await LoadHealthAsync();
+                await InvokeAsync(StateHasChanged);
+            });
         });
     }
 
@@ -198,5 +241,13 @@
         public string MqttTopic { get; init; } = string.Empty;
         public string LoxoneUuidAction { get; init; } = string.Empty;
         public string Status { get; init; } = string.Empty;
+    }
+
+    private static string FormatAgo(DateTimeOffset since)
+    {
+        var elapsed = DateTimeOffset.UtcNow - since;
+        if (elapsed.TotalSeconds < 60) return $"{(int)elapsed.TotalSeconds}s ago";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s ago";
+        return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m ago";
     }
 }

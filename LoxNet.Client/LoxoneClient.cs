@@ -200,6 +200,12 @@ public class LoxoneClient : ILoxoneClient
             remove => _inner.MessageReceived -= value;
         }
 
+        public event EventHandler? Disconnected
+        {
+            add => _inner.Disconnected += value;
+            remove => _inner.Disconnected -= value;
+        }
+
         public Task ConnectAsync(CancellationToken cancellationToken = default) =>
             _inner.ConnectAsync(cancellationToken);
 
